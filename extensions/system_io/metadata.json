@@ -1,0 +1,6 @@
+{
+    "name": "system.io",
+    "author": "Project Team",
+    "version": "1.0.0",
+    "description": "System I/O extension providing print functions"
+}

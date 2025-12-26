@@ -1,0 +1,6 @@
+{
+    "name": "system.error",
+    "author": "Project Team",
+    "version": "1.0.0",
+    "description": "Exception handling utilities and error types"
+}

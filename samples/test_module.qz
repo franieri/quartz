@@ -1,0 +1,12 @@
+// Test file-based module imports with new syntax
+import system.io.* as io;
+import mylib.*as mm;
+
+// Use classes from the module
+let math = new mm.MathHelper();
+let str = new mm.StringHelper();
+
+io.out.println("Testing module imports:");
+io.out.println("twice(5) = \{math.twice(5)}");
+io.out.println("triple(5) = \{math.triple(5)}");
+io.out.println(str.greet("Module System"));

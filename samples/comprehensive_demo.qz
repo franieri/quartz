@@ -1,0 +1,109 @@
+import system.io as io;
+import system.math as math;
+import system.string as strfunc;
+import system.convert as convert;
+
+io.out.println("========================================");
+io.out.println("Quartz Language - Comprehensive Demo");
+io.out.println("========================================");
+
+io.out.println("\n1. CLASSES AND OBJECTS");
+class Calculator {
+    int result;
+    
+    fn add(a: int, b: int) -> int {
+        result = a + b;
+        return result;
+    }
+    
+    fn multiply(a: int, b: int) -> int {
+        result = a * b;
+        return result;
+    }
+}
+
+let calc = new Calculator();
+io.out.println("Created Calculator object:", calc);
+
+io.out.println("\n2. ARRAYS AND DICTIONARY");
+let numbers = [10, 20, 30, 40, 50];
+let config = {
+    "language": "Quartz",
+    "version": 1.0,
+    "compiled": true
+};
+
+io.out.println("Numbers array:", numbers);
+io.out.println("First element: ", numbers[0]);
+io.out.println("Config dict:", config);
+io.out.println("Language:", config["language"]);
+
+io.out.println("\n3. COMPOUND ASSIGNMENTS AND LOOPS");
+let x = 10;
+io.out.println("Starting x:", x);
+x += 5;
+io.out.println("After x += 5:", x);
+x *= 2;
+io.out.println("After x *= 2:", x);
+
+io.out.println("Loop with break:");
+let i = 0;
+while (i < 10) {
+    if (i == 5) {
+        break;
+    }
+    io.out.println("  i:", i);
+    i += 1;
+}
+
+io.out.println("\n4. MATH LIBRARY");
+let angle = math.pow(2, 3);
+io.out.println("2^3 =", angle);
+io.out.println("sqrt(16) =", math.sqrt(16));
+io.out.println("abs(-42) =", math.abs(-42));
+io.out.println("max(7, 3) =", math.max(7, 3));
+io.out.println("min(7, 3) =", math.min(7, 3));
+io.out.println("floor(3.7) =", math.floor(3.7));
+io.out.println("ceil(3.2) =", math.ceil(3.2));
+
+io.out.println("\n5. STRING LIBRARY");
+let text = "Quartz Programming";
+io.out.println("Original text:", text);
+io.out.println("Length:", strfunc.length(text));
+io.out.println("Uppercase:", strfunc.uppercase(text));
+io.out.println("Lowercase:", strfunc.lowercase(text));
+io.out.println("Contains 'Programming':", strfunc.contains(text, "Programming"));
+io.out.println("Substring(0, 8):", strfunc.substring(text, 0, 8));
+io.out.println("Replace 'Programming' with 'Language':", strfunc.replace(text, "Programming", "Language"));
+
+io.out.println("\n6. TYPE CONVERSION");
+io.out.println("String to Int: convert.toInt('100') =", convert.toInt("100"));
+io.out.println("String to Double: convert.toDouble('3.14') =", convert.toDouble("3.14"));
+io.out.println("Int to String: convert.toString(42) =", convert.toString(42));
+io.out.println("String to Bool: convert.toBool('true') =", convert.toBool("true"));
+io.out.println("Double to Int: convert.toInt(9.9) =", convert.toInt(9.9));
+
+io.out.println("\n7. CONTROL FLOW");
+io.out.println("For loop with continue:");
+let j = 0;
+while (j < 6) {
+    j += 1;
+    if (j == 3) {
+        continue;
+    }
+    io.out.println("  j:", j);
+}
+
+io.out.println("\n8. EXCEPTION HANDLING");
+try {
+    io.out.println("Attempting risky operation...");
+    throw new ValueError("Invalid input value");
+} catch (ValueError e) {
+    io.out.println("Caught ValueError: \{e.message}");
+} finally {
+    io.out.println("Cleanup complete.");
+}
+
+io.out.println("\n========================================");
+io.out.println("All features working perfectly!");
+io.out.println("========================================");

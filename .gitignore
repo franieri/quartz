@@ -1,0 +1,53 @@
+# Build artifacts
+build/
+*.o
+*.a
+*.dylib
+*.so
+*.lib
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Ninja
+.ninja_deps
+.ninja_log
+build.ninja
+
+# Testing
+Testing/
+*.test
+test_results/
+
+# Generated files
+*.a
+*.o
+*.so
+*.dylib
+
+# macOS specific
+.DS_Store
+.AppleDouble
+.LSOverride
+*.dSYM/
+
+# Temporary files
+*.tmp
+*.log
+.cache/
+
+# User-specific
+local.conf
+private/

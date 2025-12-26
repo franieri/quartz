@@ -1,0 +1,68 @@
+import system.io as io;
+
+class Shape {
+    string name;
+    
+    fn getName() -> string {
+        return name;
+    }
+}
+
+class Circle {
+    double radius;
+    string color;
+    
+    fn getRadius() -> double {
+        return radius;
+    }
+    
+    fn describe() {
+        io.out.println("I am a circle with radius:");
+    }
+}
+
+class Rectangle {
+    double width;
+    double height;
+    
+    fn getArea() -> double {
+        return width * height;
+    }
+    
+    fn display() {
+        io.out.println("Rectangle dimensions:");
+    }
+}
+
+let circle = new Circle();
+let rectangle = new Rectangle();
+let shape = new Shape();
+
+io.out.println("Class and object instantiation working!");
+io.out.println("circle instance:", circle);
+io.out.println("rectangle instance:", rectangle);
+io.out.println("shape instance:", shape);
+
+let numbers = [1, 2, 3, 4, 5];
+let info = {
+    "language": "Quartz",
+    "version": 1.0,
+    "features": "classes"
+};
+
+io.out.println("Arrays:", numbers);
+io.out.println("Dicts:", info);
+io.out.println("Dict access:", info["language"]);
+io.out.println("Array access:", numbers[0]);
+
+let x = 10;
+x += 5;
+io.out.println("Compound assignment (x += 5):", x);
+
+let i = 0;
+while (i < 3) {
+    io.out.println("Loop iteration:", i);
+    i += 1;
+}
+
+io.out.println("=== All OOP features working! ===");

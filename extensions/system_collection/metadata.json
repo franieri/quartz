@@ -1,0 +1,25 @@
+{
+  "name": "system.collection",
+  "version": "1.0.0",
+  "description": "Array and dictionary helpers for Quartz",
+  "functions": [
+    "len",
+    "push",
+    "pop",
+    "slice",
+    "concat",
+    "join",
+    "map",
+    "filter",
+    "reduce",
+    "sort",
+
+    "keys",
+    "values",
+    "contains",
+    "getOrDefault",
+    "remove",
+    "merge",
+    "entries"
+  ]
+}

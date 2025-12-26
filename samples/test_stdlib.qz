@@ -1,0 +1,35 @@
+import system.io as io;
+import system.math as math;
+import system.string as strfunc;
+import system.convert as convert;
+
+io.out.println("=== Testing system.math ===");
+io.out.println("math.abs(-5):", math.abs(-5));
+io.out.println("math.sqrt(16):", math.sqrt(16));
+io.out.println("math.pow(2, 3):", math.pow(2, 3));
+io.out.println("math.floor(3.7):", math.floor(3.7));
+io.out.println("math.ceil(3.2):", math.ceil(3.2));
+io.out.println("math.round(3.5):", math.round(3.5));
+io.out.println("math.min(5, 3):", math.min(5, 3));
+io.out.println("math.max(5, 3):", math.max(5, 3));
+
+io.out.println("=== Testing system.string ===");
+let text = "Hello World";
+io.out.println("Original:", text);
+io.out.println("Length:", strfunc.length(text));
+io.out.println("Uppercase:", strfunc.uppercase(text));
+io.out.println("Lowercase:", strfunc.lowercase(text));
+io.out.println("Contains 'World':", strfunc.contains(text, "World"));
+io.out.println("Starts with 'Hello':", strfunc.startsWith(text, "Hello"));
+io.out.println("Ends with 'World':", strfunc.endsWith(text, "World"));
+io.out.println("Substring(0, 5):", strfunc.substring(text, 0, 5));
+io.out.println("Replace 'World' with 'Quartz':", strfunc.replace(text, "World", "Quartz"));
+
+io.out.println("=== Testing system.convert ===");
+io.out.println("convert.toInt('42'):", convert.toInt("42"));
+io.out.println("convert.toDouble('3.14'):", convert.toDouble("3.14"));
+io.out.println("convert.toString(123):", convert.toString(123));
+io.out.println("convert.toBool('true'):", convert.toBool("true"));
+io.out.println("convert.toInt(3.9):", convert.toInt(3.9));
+
+io.out.println("=== All standard library tests passed! ===");

@@ -1,0 +1,17 @@
+// Utility functions module
+
+class MathHelper {
+    fn twice(x: int) -> int {
+        return x * 2;
+    }
+    
+    fn triple(x: int) -> int {
+        return x * 3;
+    }
+}
+
+class StringHelper {
+    fn greet(name: string) -> string {
+        return "Hello, \{name}!";
+    }
+}

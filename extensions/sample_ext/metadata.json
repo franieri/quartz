@@ -1,0 +1,6 @@
+{
+    "name": "sample_ext",
+    "version": "1.0.0",
+    "author": "Example Author",
+    "description": "A sample extension demonstrating the minimal structure"
+}

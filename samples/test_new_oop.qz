@@ -1,0 +1,71 @@
+import system.io.* as io;
+
+io.out.println("=== New OOP Features Test ===");
+
+// 1. Lambdas
+io.out.println("\n1. LAMBDAS/CLOSURES:");
+
+let multiply = (x) => x * 2;
+io.out.println("  multiply(5) =", multiply(5));
+
+let add = (a, b) => a + b;
+io.out.println("  add(3, 4) =", add(3, 4));
+
+let greet = (name) => {
+    return "Hello";
+};
+io.out.println("  greet() =", greet("World"));
+
+// 2. Interface
+io.out.println("\n2. INTERFACES:");
+
+interface Printable {
+    fn print() -> string;
+}
+
+io.out.println("  Interface Printable defined");
+
+// 3. Simple Class
+io.out.println("\n3. SIMPLE CLASS:");
+
+class Person {
+    string name;
+    int age;
+}
+
+let p = new Person();
+io.out.println("  Person created:", p);
+
+// 4. Inheritance
+io.out.println("\n4. INHERITANCE:");
+
+class Animal {
+    string name;
+}
+
+class Dog extends Animal {
+    string breed;
+}
+
+let dog = new Dog();
+io.out.println("  Dog extends Animal:", dog);
+
+// 5. Generic Class (syntax)
+io.out.println("\n5. GENERICS:");
+
+class Box<T> {
+    T value;
+}
+
+io.out.println("  Generic class Box<T> defined");
+
+// 6. Implements
+io.out.println("\n6. IMPLEMENTS:");
+
+class Document implements Printable {
+    string content;
+}
+
+io.out.println("  Document implements Printable");
+
+io.out.println("\n=== All OOP tests completed! ===");

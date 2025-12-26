@@ -1,0 +1,15 @@
+import system.io as io;
+
+let nums: int[] = [1, 2, 3, 4, 5];
+
+io.out.println("Array of numbers:", nums);
+
+let dict = {
+    "name": "Quartz",
+    "version": 1.0,
+    "active": true
+};
+
+io.out.println("Dictionary:", dict);
+io.out.println("Dictionary Name:", dict["name"]);
+

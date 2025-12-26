@@ -1,0 +1,23 @@
+// Test system.error extension
+import system.io as io;
+import system.error as error;
+
+io.out.println("=== Testing system.error Extension ===");
+
+// Test assert with true condition (should pass)
+io.out.println("\n1. Testing assert with true condition:");
+error.assert(5 > 3, "5 should be greater than 3");
+io.out.println("   Assert passed!");
+
+// Test exception with system.error utilities
+io.out.println("\n2. Testing exception info functions:");
+try {
+    throw new ValueError("Test error message");
+} catch (e) {
+    io.out.println("   Exception message: \{e.message}");
+    io.out.println("   Exception type: \{e.type}");
+}
+
+io.out.println("\n=== All system.error tests completed! ===");
+
+// Note: We won't test panic() or failed assert() as they terminate the program

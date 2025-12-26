@@ -1,0 +1,24 @@
+import system.io as io;
+import system.collection as c;
+
+let nums: int[] = [1, 2, 3];
+io.out.println("len(nums)=", c.len(nums));
+
+c.push(nums, 4);
+io.out.println("after push:", nums);
+
+let last = c.pop(nums);
+io.out.println("popped:", last);
+io.out.println("after pop:", nums);
+
+let dict = {
+    "name": "Quartz",
+    "version": 1.0,
+    "active": true
+};
+
+io.out.println("len(dict)=", c.len(dict));
+io.out.println("keys:", c.keys(dict));
+io.out.println("values:", c.values(dict));
+io.out.println("contains(name)=", c.contains(dict, "name"));
+io.out.println("getOrDefault(missing)=", c.getOrDefault(dict, "missing", "default"));

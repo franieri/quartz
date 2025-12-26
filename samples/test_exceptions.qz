@@ -1,0 +1,71 @@
+// Test Exception Handling in Quartz Language
+import system.io as io;
+
+io.out.println("=== Exception Handling Demo ===");
+
+// 1. Basic try-catch
+io.out.println("\n1. Basic try-catch:");
+try {
+    io.out.println("  Inside try block");
+    throw new Exception("Something went wrong!");
+    io.out.println("  This should not print");
+} catch (Exception e) {
+    io.out.println("  Caught exception: \{e.message}");
+}
+
+// 2. Try-catch-finally
+io.out.println("\n2. Try-catch-finally:");
+try {
+    io.out.println("  Trying risky operation...");
+    throw new RuntimeError("Runtime error occurred");
+} catch (RuntimeError e) {
+    io.out.println("  Caught RuntimeError: \{e.message}");
+} finally {
+    io.out.println("  Finally block always executes");
+}
+
+// 3. Throwing string as exception
+io.out.println("\n3. Throw string:");
+try {
+    throw "Direct string error";
+} catch (e) {
+    io.out.println("  Caught: \{e.message}");
+}
+
+// 4. Exception with custom types
+io.out.println("\n4. Custom exception types:");
+try {
+    throw new ValueError("Invalid value provided");
+} catch (ValueError e) {
+    io.out.println("  ValueError caught: \{e.message}");
+    io.out.println("  Exception type: \{e.type}");
+}
+
+// 5. Nested try-catch
+io.out.println("\n5. Nested try-catch:");
+try {
+    io.out.println("  Outer try");
+    try {
+        io.out.println("    Inner try");
+        throw new IndexError("Index out of bounds");
+    } catch (IndexError e) {
+        io.out.println("    Inner catch: \{e.message}");
+        throw new Exception("Re-throwing as generic exception");
+    }
+} catch (Exception e) {
+    io.out.println("  Outer catch: \{e.message}");
+}
+
+// 6. No exception thrown (normal execution)
+io.out.println("\n6. Normal execution (no exception):");
+try {
+    let x = 10;
+    let y = 20;
+    io.out.println("  x + y = \{x + y}");
+} catch (e) {
+    io.out.println("  This should not print");
+} finally {
+    io.out.println("  Finally still runs");
+}
+
+io.out.println("\n=== All exception tests completed! ===");

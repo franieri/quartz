@@ -1,0 +1,41 @@
+import system.io as io;
+
+let x: int = 5;
+var y: int = 10;
+
+int counter = 0;
+
+while (counter < 3) 
+{
+    counter = counter + 1;
+    x += 1;
+    y += 1;
+}
+
+io.out.println("Counter after while loop:", counter);
+io.out.println("X:", x);
+io.out.println("Y:", y);
+
+int z = 0;
+int breakTest = 0;
+while (breakTest < 10)
+{
+    breakTest += 1;
+    if (breakTest == 3)
+    {
+        io.out.println("Breaking at:", breakTest);
+        break;
+    }
+}
+
+int skipTest = 0;
+while (skipTest < 5)
+{
+    skipTest += 1;
+    if (skipTest == 2)
+    {
+        io.out.println("Skipping 2, continuing");
+        continue;
+    }
+    io.out.println("skipTest value:", skipTest);
+}

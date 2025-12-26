@@ -1,0 +1,29 @@
+import system.io as io;
+
+let nums = [1, 2, 3, 4, 5];
+let dict = {
+    "name": "Quartz",
+    "version": 1.0,
+    "active": true
+};
+
+io.out.println("Array access test");
+let first = nums[0];
+io.out.println("nums[0]:", first);
+
+let second = nums[1];
+io.out.println("nums[1]:", second);
+
+let third = nums[2];
+io.out.println("nums[2]:", third);
+
+io.out.println("Dictionary access test");
+let name = dict["name"];
+io.out.println("dict[name]:", name);
+
+let version = dict["version"];
+io.out.println("dict[version]:", version);
+
+let active = dict["active"];
+io.out.println("dict[active]:", active);
+

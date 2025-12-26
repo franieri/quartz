@@ -1,0 +1,32 @@
+import system.io as io;
+
+class Person {
+    string name;
+    int age;
+    
+    fn greet() -> string {
+        io.out.println("Hello, my name is:");
+        return name;
+    }
+    
+    fn haveBirthday() {
+        age += 1;
+        io.out.println("Happy birthday!");
+    }
+}
+
+class Animal {
+    string species;
+    string name;
+    
+    fn speak() {
+        io.out.println("The animal makes a sound");
+    }
+}
+
+let person = new Person();
+let animal = new Animal();
+
+io.out.println("Objects created successfully!");
+io.out.println("Person instance: \{person}");
+io.out.println("Animal instance: \{animal}");

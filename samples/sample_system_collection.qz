@@ -1,0 +1,64 @@
+import system.io as io;
+import system.collection as c;
+
+io.out.println("=== system.collection sample ===");
+
+// Arrays
+let nums: int[] = [5, 1, 4, 2, 3];
+io.out.println("nums:", nums);
+io.out.println("len(nums):", c.len(nums));
+
+c.push(nums, 6);
+io.out.println("after push 6:", nums);
+
+let last = c.pop(nums);
+io.out.println("popped:", last);
+io.out.println("after pop:", nums);
+
+let first3 = c.slice(nums, 0, 3);
+io.out.println("slice(0,3):", first3);
+
+let more: int[] = [10, 20];
+let combined = c.concat(nums, more);
+io.out.println("concat(nums, [10,20]):", combined);
+io.out.println("join(combined, ','):", c.join(combined, ","));
+
+// Lambdas + higher-order helpers
+let doubled = c.map(nums, (x) => x * 2);
+io.out.println("map(x*2):", doubled);
+
+let evens = c.filter(nums, (x) => ((x / 2) * 2) == x);
+io.out.println("filter(even):", evens);
+
+let sum = c.reduce(nums, (acc, x) => acc + x, 0);
+io.out.println("reduce(sum):", sum);
+
+c.sort(nums);
+io.out.println("sort(default):", nums);
+
+c.sort(nums, (a, b) => a > b);
+io.out.println("sort(desc comparator a>b):", nums);
+
+// Dicts
+let a = {"name": "Quartz", "version": 1.0};
+let b = {"active": true, "version": 2.0};
+
+io.out.println("a:", a);
+io.out.println("b:", b);
+
+io.out.println("len(a):", c.len(a));
+io.out.println("keys(a):", c.keys(a));
+io.out.println("values(a):", c.values(a));
+
+io.out.println("contains(a,'name'):", c.contains(a, "name"));
+io.out.println("getOrDefault(a,'missing','default'):", c.getOrDefault(a, "missing", "default"));
+
+let merged = c.merge(a, b);
+io.out.println("merge(a,b):", merged);
+
+io.out.println("entries(merged):", c.entries(merged));
+
+c.remove(a, "name");
+io.out.println("after remove(a,'name'):", a);
+
+let d: dict<string, int> = {"a": 1, "b": 2};

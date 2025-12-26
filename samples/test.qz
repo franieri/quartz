@@ -1,0 +1,31 @@
+import system.io.* as io;
+import system.math.* as math;
+
+// Define a simple class with methods
+/*
+two classes: Calculator with method abs, Greeter with method greet
+*/
+
+class Calculator 
+{
+    fn abs(a: int) -> int
+    {
+        return math.abs(a);
+    }
+}
+
+class Greeter
+{
+    fn greet(name: string) -> string
+    {
+        return "Hello, \{name}!";
+    }
+}
+
+let calc = new Calculator();
+let greeter = new Greeter();
+
+
+io.out.println("Absolute value of -42 is: \{calc.abs(-42)}");
+
+io.out.println(greeter.greet("World"));

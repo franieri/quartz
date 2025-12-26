@@ -1,0 +1,10 @@
+import system.io.* as io;
+
+io.out.println("Hello from fully-qualified");
+
+double v = 2.5;
+io.out.println("Value:", v);
+
+string w = io.stdin.readln();
+
+io.out.println("You entered:", w);

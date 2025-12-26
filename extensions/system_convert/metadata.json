@@ -1,0 +1,8 @@
+{
+    "name": "system.convert",
+    "version": "1.0.0",
+    "description": "Type conversion functions for Quartz",
+    "functions": [
+        "toInt", "toInteger", "toDouble", "toFloat", "toString", "toBool", "toBoolean"
+    ]
+}

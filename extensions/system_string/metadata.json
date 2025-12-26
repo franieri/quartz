@@ -1,0 +1,9 @@
+{
+    "name": "system.string",
+    "version": "1.0.0",
+    "description": "String manipulation functions for Quartz",
+    "functions": [
+        "length", "uppercase", "toLowerCase", "lowercase", "toUpperCase",
+        "trim", "contains", "startsWith", "endsWith", "substring", "replace"
+    ]
+}

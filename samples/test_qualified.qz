@@ -1,0 +1,19 @@
+import system.io.* as io;
+import mylib.* as mm;
+
+// Test 1: Using alias-qualified class name
+let math1 = new mm.MathHelper();
+io.out.println("Test 1 - alias qualified: mm.MathHelper");
+io.out.println("twice(7) = \{math1.twice(7)}");
+
+// Test 2: Using full module path
+let math2 = new mylib.MathHelper();
+io.out.println("Test 2 - full path: mylib.MathHelper");  
+io.out.println("triple(7) = \{math2.triple(7)}");
+
+// Test 3: Using bare class name (should still work)
+let str = new StringHelper();
+io.out.println("Test 3 - bare class: StringHelper");
+io.out.println(str.greet("Qualified Classes"));
+
+io.out.println("All tests passed!");

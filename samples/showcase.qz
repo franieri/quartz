@@ -1,0 +1,63 @@
+import system.io as io;
+
+io.out.println("=== QUARTZ LANGUAGE FEATURE SHOWCASE ===");
+
+io.out.println("\n1. ARRAYS AND INDEXING");
+let scores = [95, 87, 92, 88, 90];
+io.out.println("scores array:", scores);
+io.out.println("First score (scores[0]):", scores[0]);
+io.out.println("Third score (scores[2]):", scores[2]);
+
+io.out.println("\n2. DICTIONARIES AND KEY ACCESS");
+let person = {
+    "name": "Alice",
+    "age": 30,
+    "developer": true
+};
+io.out.println("person dict:", person);
+io.out.println("Name:", person["name"]);
+io.out.println("Age:", person["age"]);
+
+io.out.println("\n3. COMPOUND ASSIGNMENTS");
+let x = 10;
+io.out.println("Initial x:", x);
+x += 5;
+io.out.println("After x += 5:", x);
+x -= 3;
+io.out.println("After x -= 3:", x);
+x *= 2;
+io.out.println("After x *= 2:", x);
+x /= 4;
+io.out.println("After x /= 4:", x);
+
+io.out.println("\n4. LOOPS WITH BREAK AND CONTINUE");
+io.out.println("Counting with break at 5:");
+let i = 0;
+while (i < 10) {
+    if (i == 5) {
+        break;
+    }
+    io.out.println("  i:", i);
+    i += 1;
+}
+
+io.out.println("Skipping odd numbers:");
+let j = 0;
+while (j < 6) {
+    j += 1;
+    let remainder = j - (j / 2) * 2;
+    if (remainder == 1) {
+        continue;
+    }
+    io.out.println("  even j:", j);
+}
+
+io.out.println("\n5. NESTED STRUCTURES");
+let data = {
+    "list": [1, 2, 3],
+    "value": 42
+};
+io.out.println("data:", data);
+io.out.println("data['value']:", data["value"]);
+
+io.out.println("\n=== ALL FEATURES WORKING ===");

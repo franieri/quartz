@@ -7,6 +7,7 @@
 #include <memory>
 #include <optional>
 #include <map>
+#include <stdexcept>
 
 // Opaque handles for runtime-managed containers.
 // Arrays/Dicts live in Runtime storage; these values reference them by ID.

@@ -2,7 +2,7 @@
 
 ################################################################################
 # Quartz Language - Core Rebuild Script
-# 
+#
 # This script rebuilds the core language and all extensions.
 # It performs a clean reconfiguration of CMake and builds all targets.
 #
@@ -142,7 +142,7 @@ extension_count=0
 for ext_dir in extensions/*/; do
     if [ -d "$ext_dir" ]; then
         ext_name=$(basename "$ext_dir")
-        
+
         # Skip CMakeFiles and other non-extension directories
         if [[ ! "$ext_name" =~ ^CMakeFiles$ ]]; then
             print_status "Building extension: $ext_name"
@@ -167,8 +167,8 @@ fi
 print_section "Build Summary"
 echo "Build artifacts location: ./build/"
 echo "Main executable:          ./build/quartz"
-echo "Core library:             ./build/libqz-core.dylib"
-echo "Extensions:               ./build/extensions/*/lib*.dylib"
+echo "Core library:             ./build/libqz-core.so"
+echo "Extensions:               ./build/extensions/*/lib*.so"
 echo ""
 print_success "Full build completed successfully!"
 echo ""

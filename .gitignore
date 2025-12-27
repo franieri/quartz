@@ -5,6 +5,7 @@ build/
 *.dylib
 *.so
 *.lib
+*.qzb
 
 # CMake
 CMakeCache.txt

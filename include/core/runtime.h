@@ -246,6 +246,46 @@ public:
     // Get error message if task was rejected; empty string otherwise.
     std::string taskError(const TaskRef& ref) const;
 
+    // ------------------------------------------------------------------------
+    // Buffer helpers (binary data for I/O operations)
+    // ------------------------------------------------------------------------
+    
+    // Create a new empty buffer with optional initial capacity
+    Value makeBuffer(size_t initialCapacity = 0);
+    
+    // Create a buffer from a string (copies bytes)
+    Value makeBufferFromString(const std::string& str);
+    
+    // Get raw pointer to buffer data (for extensions)
+    std::vector<uint8_t>* getBuffer(const BufferRef& ref);
+    const std::vector<uint8_t>* getBuffer(const BufferRef& ref) const;
+    
+    // Get buffer size
+    size_t bufferSize(const BufferRef& ref) const;
+    
+    // Get buffer capacity
+    size_t bufferCapacity(const BufferRef& ref) const;
+    
+    // Convert buffer to string
+    std::string bufferToString(const BufferRef& ref) const;
+    
+    // Append data to buffer (from string or another buffer)
+    bool bufferAppendString(const BufferRef& ref, const std::string& data);
+    bool bufferAppendBuffer(const BufferRef& ref, const BufferRef& other);
+    
+    // Slice buffer (returns new buffer with copy of data)
+    Value bufferSlice(const BufferRef& ref, size_t start, size_t end);
+    
+    // Clear buffer contents
+    bool bufferClear(const BufferRef& ref);
+    
+    // Copy buffer (returns new buffer)
+    Value bufferCopy(const BufferRef& ref);
+    
+    // Byte-level access
+    int bufferGetByte(const BufferRef& ref, size_t index) const;
+    bool bufferSetByte(const BufferRef& ref, size_t index, uint8_t value);
+
     // Formatting (used by to_string(Value) and I/O)
     std::string formatValue(const Value& v, bool quoteStrings = false) const;
     std::string formatArrayById(const std::string& arrayId, bool quoteStrings = false) const;
@@ -262,6 +302,7 @@ private:
     std::unordered_map<std::string, ObjectInstancePtr> objects;  // Store object instances
     std::unordered_map<std::string, std::vector<Value>> arrayStorage;  // Store actual arrays
     std::unordered_map<std::string, std::unordered_map<std::string, Value>> dictStorage;  // Store actual dicts
+    std::unordered_map<std::string, std::vector<uint8_t>> bufferStorage;  // Store byte buffers
     std::unordered_map<std::string, std::string> varToArrayId;  // Map variable name to array ID
     std::unordered_map<std::string, std::string> varToDictId;   // Map variable name to dict ID
     RuntimeState state;
@@ -272,6 +313,7 @@ private:
     size_t nextArrayId = 0;  // Counter for unique array IDs
     size_t nextDictId = 0;   // Counter for unique dict IDs
     size_t nextLambdaId = 0; // Counter for unique lambda IDs
+    size_t nextBufferId = 0; // Counter for unique buffer IDs
     
     // Lambda/Closure storage
     struct StoredLambda {

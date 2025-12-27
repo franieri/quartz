@@ -1,0 +1,24 @@
+{
+    "name": "system_io_buffer",
+    "version": "1.0.0",
+    "description": "Byte buffer primitives for binary I/O operations",
+    "namespace": "system.io.buffer",
+    "functions": [
+        {"name": "create", "signature": "(capacity?: int) -> buffer", "description": "Create empty buffer"},
+        {"name": "fromString", "signature": "(s: string) -> buffer", "description": "Create buffer from string"},
+        {"name": "toString", "signature": "(b: buffer) -> string", "description": "Convert buffer to string"},
+        {"name": "size", "signature": "(b: buffer) -> int", "description": "Get buffer size"},
+        {"name": "capacity", "signature": "(b: buffer) -> int", "description": "Get buffer capacity"},
+        {"name": "append", "signature": "(b: buffer, data: string|buffer) -> bool", "description": "Append data"},
+        {"name": "slice", "signature": "(b: buffer, start: int, end?: int) -> buffer", "description": "Slice buffer"},
+        {"name": "clear", "signature": "(b: buffer) -> bool", "description": "Clear buffer"},
+        {"name": "copy", "signature": "(b: buffer) -> buffer", "description": "Copy buffer"},
+        {"name": "getByte", "signature": "(b: buffer, index: int) -> int", "description": "Get byte at index"},
+        {"name": "setByte", "signature": "(b: buffer, index: int, value: int) -> bool", "description": "Set byte"},
+        {"name": "toHex", "signature": "(b: buffer) -> string", "description": "Convert to hex string"},
+        {"name": "fromHex", "signature": "(s: string) -> buffer", "description": "Create from hex string"},
+        {"name": "toBase64", "signature": "(b: buffer) -> string", "description": "Convert to Base64"},
+        {"name": "fromBase64", "signature": "(s: string) -> buffer", "description": "Create from Base64"},
+        {"name": "equals", "signature": "(a: buffer, b: buffer) -> bool", "description": "Compare buffers"}
+    ]
+}

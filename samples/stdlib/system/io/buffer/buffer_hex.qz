@@ -1,0 +1,28 @@
+// Hex encoding/decoding
+// Expected output:
+//   Original: ABC
+//   Hex: 414243
+//   Decoded from hex: ABC
+//   Hex equals original: true
+
+import system.io as io;
+import system.io.buffer as buf;
+
+let original = buf.fromString("ABC");
+
+io.println("Original:");
+io.println(buf.toString(original));
+
+// To hex
+let hex = buf.toHex(original);
+io.println("Hex:");
+io.println(hex);
+
+// From hex
+let decoded = buf.fromHex(hex);
+io.println("Decoded from hex:");
+io.println(buf.toString(decoded));
+
+// Verify equality
+io.println("Hex equals original:");
+io.println(buf.equals(original, decoded));

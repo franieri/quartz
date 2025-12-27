@@ -1,0 +1,24 @@
+// Buffer clear operation
+// Expected output:
+//   Before clear: Hello
+//   Size before: 5
+//   After clear:
+//   Size after: 0
+
+import system.io as io;
+import system.io.buffer as buf;
+
+let b = buf.fromString("Hello");
+
+io.println("Before clear:");
+io.println(buf.toString(b));
+io.println("Size before:");
+io.println(buf.size(b));
+
+// Clear the buffer
+buf.clear(b);
+
+io.println("After clear:");
+io.println(buf.toString(b));
+io.println("Size after:");
+io.println(buf.size(b));

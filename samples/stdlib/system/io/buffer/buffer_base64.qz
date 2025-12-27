@@ -1,0 +1,28 @@
+// Base64 encoding/decoding
+// Expected output:
+//   Original: Hello, World!
+//   Base64: SGVsbG8sIFdvcmxkIQ==
+//   Decoded: Hello, World!
+//   Base64 equals original: true
+
+import system.io as io;
+import system.io.buffer as buf;
+
+let original = buf.fromString("Hello, World!");
+
+io.println("Original:");
+io.println(buf.toString(original));
+
+// To Base64
+let b64 = buf.toBase64(original);
+io.println("Base64:");
+io.println(b64);
+
+// From Base64
+let decoded = buf.fromBase64(b64);
+io.println("Decoded:");
+io.println(buf.toString(decoded));
+
+// Verify equality
+io.println("Base64 equals original:");
+io.println(buf.equals(original, decoded));

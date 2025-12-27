@@ -25,6 +25,12 @@ struct TaskRef {
     std::string id;
 };
 
+// BufferRef: handle to a runtime-managed byte buffer.
+// Buffers live in Runtime storage; used for binary I/O operations.
+struct BufferRef {
+    std::string id;
+};
+
 // ============================================================================
 // Node Type Enumeration
 // ============================================================================
@@ -187,7 +193,7 @@ struct TypeAnnotation {
 };
 
 // Runtime Value type
-using Value = std::variant<int, double, std::string, bool, ArrayRef, DictRef, TaskRef>;
+using Value = std::variant<int, double, std::string, bool, ArrayRef, DictRef, TaskRef, BufferRef>;
 
 // Optional value (implements Option<T>)
 template<typename T>

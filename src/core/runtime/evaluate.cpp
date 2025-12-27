@@ -30,6 +30,10 @@ static inline void appendValueToString(std::string& out, const Value& val, bool 
             out += "<task:";
             out += arg.id;
             out += ">";
+        } else if constexpr (std::is_same_v<T, BufferRef>) {
+            out += "<buffer:";
+            out += arg.id;
+            out += ">";
         }
     }, val);
 }
@@ -309,6 +313,7 @@ Value Runtime::evaluate(const ASTNodePtr& node) {
                 if constexpr (std::is_same_v<T, bool>) return arg;
                 else if constexpr (std::is_arithmetic_v<T>) return arg != 0;
                 else if constexpr (std::is_same_v<T, TaskRef>) return true;  // Task handle is truthy
+                else if constexpr (std::is_same_v<T, BufferRef>) return true;  // Buffer handle is truthy
                 else return false;
             }, operand);
             return Value(!val);

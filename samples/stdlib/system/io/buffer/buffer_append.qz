@@ -1,0 +1,26 @@
+// Buffer append and manipulation
+// Expected output:
+//   After append: Hello, World!
+//   Size after append: 13
+//   After second append: Hello, World! And more!
+//   Size now: 23
+
+import system.io as io;
+import system.io.buffer as buf;
+
+// Create and append
+let b = buf.create();
+buf.append(b, "Hello, ");
+buf.append(b, "World!");
+
+io.println("After append:");
+io.println(buf.toString(b));
+io.println("Size after append:");
+io.println(buf.size(b));
+
+// Append more
+buf.append(b, " And more!");
+io.println("After second append:");
+io.println(buf.toString(b));
+io.println("Size now:");
+io.println(buf.size(b));

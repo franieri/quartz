@@ -1,0 +1,55 @@
+// Test system.fs async binary operations with buffers
+// Expected output:
+//   Buffer created, size:
+//   22
+//   Starting async binary write...
+//   Async binary write result:
+//   true
+//   Starting async binary read...
+//   Read buffer size:
+//   22
+//   Content:
+//   Binary async test data
+//   Cleaned up:
+//   true
+
+import system.io as io;
+import system.fs as fs;
+import system.async.task as task;
+import system.io.buffer as buf;
+
+let testFile = "build/test_async_binary.bin";
+
+// Create a buffer with test data
+let b = buf.fromString("Binary async test data");
+io.println("Buffer created, size:");
+io.println(buf.size(b));
+
+// Write buffer asynchronously
+io.println("Starting async binary write...");
+let writeTask = fs.writeBytesAsync(testFile, b);
+
+// Wait for completion
+let writeResult = task.get(writeTask);
+io.println("Async binary write result:");
+io.println(writeResult);
+
+// Read back asynchronously  
+io.println("Starting async binary read...");
+let readTask = fs.readBytesAsync(testFile);
+
+// Get result - should be a buffer
+let readBuf = task.get(readTask);
+io.println("Read buffer size:");
+io.println(buf.size(readBuf));
+
+// Verify content
+let readStr = buf.toString(readBuf);
+io.println("Content:");
+io.println(readStr);
+
+// Clean up
+fs.delete(testFile);
+let gone = !fs.exists(testFile);
+io.println("Cleaned up:");
+io.println(gone);

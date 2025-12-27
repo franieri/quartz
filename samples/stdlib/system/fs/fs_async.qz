@@ -1,0 +1,57 @@
+// Test system.fs asynchronous read/write operations
+// Expected output:
+//   Starting async write...
+//   Write task status:
+//   ok
+//   Async write result:
+//   true
+//   File created:
+//   true
+//   Starting async read...
+//   Async read content:
+//   Async content for testing
+//   Async delete result:
+//   true
+//   File removed:
+//   true
+
+import system.io as io;
+import system.fs as fs;
+import system.async.task as task;
+
+let testFile = "build/test_async_io.txt";
+let content = "Async content for testing";
+
+// Test async write
+io.println("Starting async write...");
+let writeTask = fs.writeAsync(testFile, content);
+
+// Wait for completion && check status
+let writeResult = task.get(writeTask);
+io.println("Write task status:");
+io.println(task.status(writeTask));
+io.println("Async write result:");
+io.println(writeResult);
+
+// Verify file exists
+io.println("File created:");
+io.println(fs.exists(testFile));
+
+// Test async read
+io.println("Starting async read...");
+let readTask = fs.readAsync(testFile);
+
+// Wait for read to complete
+let readResult = task.get(readTask);
+io.println("Async read content:");
+io.println(readResult);
+
+// Test async delete
+let deleteTask = fs.deleteAsync(testFile);
+let deleteResult = task.get(deleteTask);
+io.println("Async delete result:");
+io.println(deleteResult);
+
+let gone = !fs.exists(testFile);
+io.println("File removed:");
+io.println(gone);

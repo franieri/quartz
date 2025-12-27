@@ -1,0 +1,63 @@
+// Test system.fs directory operations
+// Expected output:
+//   mkdir result:
+//   true
+//   Directory exists:
+//   true
+//   Is directory:
+//   true
+//   mkdirs result:
+//   true
+//   List directory entries:
+//   2
+//   Subdir removed:
+//   true
+//   Parent dir removed:
+//   true
+
+import system.io as io;
+import system.fs as fs;
+
+let testDir = "build/test_fs_dir";
+let subDir = "build/test_fs_dir/subdir";
+
+// Create directory
+let mkdirResult = fs.mkdir(testDir);
+io.println("mkdir result:");
+io.println(mkdirResult);
+
+// Check it exists
+io.println("Directory exists:");
+io.println(fs.exists(testDir));
+
+// Check it's a directory
+io.println("Is directory:");
+io.println(fs.isDir(testDir));
+
+// Create nested directories
+let mkdirsResult = fs.mkdirs(subDir);
+io.println("mkdirs result:");
+io.println(mkdirsResult);
+
+// Create a test file in the directory
+fs.write(fs.join(testDir, "test.txt"), "test content");
+
+// List directory - count entries
+let entries = fs.list(testDir);
+io.println("List directory entries:");
+io.println(entries);
+
+// Clean up - first remove file
+fs.delete(fs.join(testDir, "test.txt"));
+
+// Remove nested dir
+fs.rmdir(subDir);
+let subdirGone = !fs.exists(subDir);
+io.println("Subdir removed:");
+io.println(subdirGone);
+
+// Remove parent dir
+fs.rmdir(testDir);
+let parentGone = !fs.exists(testDir);
+io.println("Parent dir removed:");
+io.println(parentGone);

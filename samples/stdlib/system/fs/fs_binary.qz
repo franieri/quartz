@@ -1,0 +1,67 @@
+// Test system.fs binary read/write with buffers
+// Expected output:
+//   Buffer size:
+//   5
+//   Write bytes result:
+//   true
+//   File exists:
+//   true
+//   File size:
+//   5
+//   Read buffer size:
+//   5
+//   First byte (H=72):
+//   72
+//   Fifth byte (o=111):
+//   111
+//   Buffer as string:
+//   Hello
+//   Cleaned up:
+//   true
+
+import system.io as io;
+import system.fs as fs;
+import system.io.buffer as buf;
+
+// Create a buffer with some binary data using fromString
+let b = buf.fromString("Hello");
+io.println("Buffer size:");
+io.println(buf.size(b));
+
+let testFile = "build/test_fs_binary.bin";
+
+// Write buffer to file
+let writeResult = fs.writeBytes(testFile, b);
+io.println("Write bytes result:");
+io.println(writeResult);
+
+// Check file exists
+io.println("File exists:");
+io.println(fs.exists(testFile));
+
+// Check file size
+io.println("File size:");
+io.println(fs.size(testFile));
+
+// Read back as buffer
+let readBuf = fs.readBytes(testFile);
+io.println("Read buffer size:");
+io.println(buf.size(readBuf));
+
+// Verify content
+io.println("First byte (H=72):");
+io.println(buf.getByte(readBuf, 0));
+
+io.println("Fifth byte (o=111):");
+io.println(buf.getByte(readBuf, 4));
+
+// Read as string to verify text content
+let asString = buf.toString(readBuf);
+io.println("Buffer as string:");
+io.println(asString);
+
+// Clean up
+fs.delete(testFile);
+let cleaned = !fs.exists(testFile);
+io.println("Cleaned up:");
+io.println(cleaned);

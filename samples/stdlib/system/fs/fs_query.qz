@@ -1,0 +1,56 @@
+// Test system.fs file query functions
+// Expected output:
+//   Self file exists:
+//   true
+//   Self is file:
+//   true
+//   samples is directory:
+//   true
+//   Self is directory:
+//   false
+//   samples is file:
+//   false
+//   Non-existent file exists:
+//   false
+//   File size > 0:
+//   true
+//   Temp dir exists:
+//   true
+
+import system.io as io;
+import system.fs as fs;
+
+// Test exists with known path
+let selfPath = "samples/stdlib/system/fs/fs_query.qz";
+io.println("Self file exists:");
+io.println(fs.exists(selfPath));
+
+// Test isFile
+io.println("Self is file:");
+io.println(fs.isFile(selfPath));
+
+// Test isDir
+io.println("samples is directory:");
+io.println(fs.isDir("samples"));
+
+// Test isDir on file
+io.println("Self is directory:");
+io.println(fs.isDir(selfPath));
+
+// Test isFile on directory
+io.println("samples is file:");
+io.println(fs.isFile("samples"));
+
+// Test exists on non-existent
+io.println("Non-existent file exists:");
+io.println(fs.exists("definitely_not_a_real_file_12345.xyz"));
+
+// Test size
+let size = fs.size(selfPath);
+io.println("File size > 0:");
+io.println(size > 0);
+
+// Test tempDir
+let tmp = fs.tempDir();
+io.println("Temp dir exists:");
+io.println(fs.exists(tmp));

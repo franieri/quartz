@@ -469,16 +469,14 @@ Value BytecodeVM::callName(const std::string& name, const std::vector<Value>& ar
             std::string full = pair.second + "." + name;
             if (FunctionRegistry::instance().exists(full)) return FunctionRegistry::instance().call(full, args);
         }
-        if (error) *error = "Unknown function: " + name;
-        Logger::instance().log(LogLevel::ERROR, *error);
+        runtime.notifyError("call", "Unknown function: " + name, -1, -1, false);
         return Value{};
     }
 
     std::string resolved = runtime.resolveFunctionName(name);
     if (FunctionRegistry::instance().exists(resolved)) return FunctionRegistry::instance().call(resolved, args);
 
-    if (error) *error = "Unknown function: " + resolved;
-    Logger::instance().log(LogLevel::ERROR, *error);
+    runtime.notifyError("call", "Unknown function: " + resolved, -1, -1, false);
     return Value{};
 }
 
@@ -1057,6 +1055,11 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
 bool BytecodeVM::run(const bc::Program& program, std::string* error) {
     prog = &program;
 
+    runtime.executionMode = "bytecode";
+    runtime.state = RuntimeState::EXECUTING;
+    // Note: program-level hooks will register during execution; start is mainly for host-registered hooks.
+    runtime.emitHook("start", {Value(runtime.executionMode)});
+
     // Allow extensions to invoke bytecode lambdas by id (e.g. system.collection.map).
     runtime.setExternalLambdaInvoker([this](const std::string& lambdaId, const std::vector<Value>& args) -> Value {
         auto it = lambdas.find(lambdaId);
@@ -1071,12 +1074,23 @@ bool BytecodeVM::run(const bc::Program& program, std::string* error) {
     try {
         (void)runFunction(program.entryFunction, {}, nullptr, nullptr, error);
     } catch (const std::exception& ex) {
-        runtime.setExternalLambdaInvoker(nullptr);
         if (error) *error = std::string("VM fatal: ") + ex.what();
+        runtime.notifyError("vm", error ? *error : std::string("VM fatal"), -1, -1, true);
+        runtime.emitHook("end", {Value(runtime.executionMode), Value(std::string("error"))});
+        runtime.setExternalLambdaInvoker(nullptr);
         return false;
     }
 
-    runtime.setExternalLambdaInvoker(nullptr);
+    if (error && !error->empty()) {
+        runtime.notifyError("vm", *error, -1, -1, true);
+        runtime.emitHook("end", {Value(runtime.executionMode), Value(std::string("error"))});
+        runtime.setExternalLambdaInvoker(nullptr);
+        return false;
+    }
 
-    return error == nullptr || error->empty();
+    runtime.state = RuntimeState::COMPLETED;
+    runtime.emitHook("end", {Value(runtime.executionMode), Value(std::string("completed"))});
+
+    runtime.setExternalLambdaInvoker(nullptr);
+    return true;
 }

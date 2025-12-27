@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "description": "Runtime settings extension (get/set configuration at runtime)",
   "functions": [
+    "system.runtime.on",
+    "system.runtime.off",
+    "system.runtime.clearHooks",
+    "system.runtime.onError",
     "system.runtime.env",
     "system.runtime.envOrDefault",
     "system.runtime.hasEnv",

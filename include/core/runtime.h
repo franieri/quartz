@@ -158,6 +158,24 @@ public:
     void halt();
     bool isHalted() const { return state == RuntimeState::HALTED; }
     RuntimeState getState() const { return state; }
+
+    // ------------------------------------------------------------------------
+    // Runtime lifecycle hooks + global error callbacks
+    // ------------------------------------------------------------------------
+    // Hooks are registered with an event name and a lambda value.
+    // Supported events (convention): "start", "end", "halt", "error".
+    // - start(mode)
+    // - end(mode, status)
+    // - halt(mode, reason)
+    // - error(mode, context, message, line, col)
+    bool addHook(const std::string& event, const Value& callback);
+    bool clearHooks(const std::string& event);
+    void clearAllHooks();
+    size_t hookCount(const std::string& event) const;
+
+    // Report an error to hooks + logger. If halt==true, runtime moves to HALTED.
+    void notifyError(const std::string& context, const std::string& message,
+                     int line = -1, int column = -1, bool halt = false);
     
     // Source file management (for module resolution)
     void setSourcePath(const std::string& path);
@@ -214,6 +232,7 @@ private:
     std::unordered_map<std::string, std::string> varToArrayId;  // Map variable name to array ID
     std::unordered_map<std::string, std::string> varToDictId;   // Map variable name to dict ID
     RuntimeState state;
+    std::string executionMode = "interp"; // "interp" or "bytecode" (best-effort)
     std::unordered_map<std::string, std::string> imports;  // alias -> full namespace
     bool shouldBreak = false;     // For break statement
     bool shouldContinue = false;  // For continue statement
@@ -243,6 +262,10 @@ private:
     
     // Static field storage: className::fieldName -> value
     std::unordered_map<std::string, Value> staticFields;
+
+    // Hook storage: event -> ordered lambda IDs
+    std::unordered_map<std::string, std::vector<std::string>> hooks;
+    bool inErrorCallback = false;
     
     // Internal methods
     void initStandardLibrary();
@@ -261,6 +284,9 @@ private:
     // Helper for error reporting
     std::string getNodeTypeString(const ASTNodePtr& node) const;
     void reportError(const std::string& context, const std::string& message);
+
+    // Hook emission helper
+    void emitHook(const std::string& event, const std::vector<Value>& args);
 };
 
 // Exported pointer to the most recently-initialized Runtime instance.

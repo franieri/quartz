@@ -1,0 +1,14 @@
+import system.io as io;
+import system.runtime as rt;
+
+// Register callbacks early so they can observe later events.
+rt.on("end", (mode, status) => io.println("HOOK end:", mode, status));
+rt.onError((mode, context, message, line, col) => io.println("HOOK error:", mode, context, message, line, col));
+
+io.println("Running hook demo...");
+
+// Trigger a recoverable runtime error (unknown function).
+// This should call the global error hook in both interpreter and bytecode.
+missingFunction(123);
+
+io.println("After missingFunction (interpreter continues)");

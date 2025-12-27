@@ -15,6 +15,7 @@
 #include <filesystem>
 #include <algorithm>
 #include <dlfcn.h>
+#include <cctype>
 
 #if defined(__APPLE__)
 #include <mach-o/dyld.h>
@@ -83,10 +84,23 @@ void Runtime::setSourceDirectory(const std::string& dir) {
 }
 
 void Runtime::execute(const AST& ast) {
+    executionMode = "interp";
+    state = RuntimeState::EXECUTING;
+    emitHook("start", {Value(executionMode)});
+
     for (const auto& node : ast.nodes) {
         if (state == RuntimeState::HALTED) break;
         executeNode(node);
     }
+
+    if (state == RuntimeState::HALTED) {
+        emitHook("halt", {Value(executionMode), Value(std::string("halted"))});
+        emitHook("end", {Value(executionMode), Value(std::string("halted"))});
+        return;
+    }
+
+    state = RuntimeState::COMPLETED;
+    emitHook("end", {Value(executionMode), Value(std::string("completed"))});
 }
 
 void Runtime::initialize() {
@@ -426,6 +440,85 @@ bool Runtime::loadModule(const std::string& modulePath) {
 
 void Runtime::halt() {
     if (state == RuntimeState::EXECUTING) {
+        state = RuntimeState::HALTED;
+        emitHook("halt", {Value(executionMode), Value(std::string("halt()"))});
+    }
+}
+
+// ============================================================================
+// Hooks + Global Error Callbacks
+// ============================================================================
+
+static inline std::string normalizeEvent(std::string s) {
+    for (char& c : s) c = (char)std::tolower((unsigned char)c);
+    return s;
+}
+
+static inline bool isLambdaIdValue(const Value& v) {
+    if (!std::holds_alternative<std::string>(v)) return false;
+    const std::string& s = std::get<std::string>(v);
+    return s.rfind("__lambda_", 0) == 0;
+}
+
+bool Runtime::addHook(const std::string& event, const Value& callback) {
+    if (!isLambdaIdValue(callback)) return false;
+    std::string ev = normalizeEvent(event);
+    hooks[ev].push_back(std::get<std::string>(callback));
+    return true;
+}
+
+bool Runtime::clearHooks(const std::string& event) {
+    std::string ev = normalizeEvent(event);
+    auto it = hooks.find(ev);
+    if (it == hooks.end()) return false;
+    hooks.erase(it);
+    return true;
+}
+
+void Runtime::clearAllHooks() {
+    hooks.clear();
+}
+
+size_t Runtime::hookCount(const std::string& event) const {
+    std::string ev = normalizeEvent(event);
+    auto it = hooks.find(ev);
+    if (it == hooks.end()) return 0;
+    return it->second.size();
+}
+
+void Runtime::emitHook(const std::string& event, const std::vector<Value>& args) {
+    std::string ev = normalizeEvent(event);
+    auto it = hooks.find(ev);
+    if (it == hooks.end()) return;
+    for (const auto& lambdaId : it->second) {
+        try {
+            (void)invokeLambdaValue(Value(lambdaId), args);
+        } catch (const std::exception& e) {
+            // Avoid hook failures crashing the runtime; log and continue.
+            Logger::instance().log(LogLevel::ERROR, std::string("Hook '") + ev + "' failed: " + e.what());
+        } catch (...) {
+            Logger::instance().log(LogLevel::ERROR, std::string("Hook '") + ev + "' failed");
+        }
+    }
+}
+
+void Runtime::notifyError(const std::string& context, const std::string& message,
+                          int line, int column, bool haltNow) {
+    // Log the error (keeps existing behavior where errors are visible by default).
+    std::string msg = context + ": " + message;
+    if (line >= 0) {
+        msg += " [line " + std::to_string(line) + ", col " + std::to_string(column) + "]";
+    }
+    Logger::instance().log(LogLevel::ERROR, msg);
+
+    // Invoke error callbacks (guard against recursive errors).
+    if (!inErrorCallback) {
+        inErrorCallback = true;
+        emitHook("error", {Value(executionMode), Value(context), Value(message), Value(line), Value(column)});
+        inErrorCallback = false;
+    }
+
+    if (haltNow) {
         state = RuntimeState::HALTED;
     }
 }

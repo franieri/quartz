@@ -438,7 +438,7 @@ Value Runtime::evaluate(const ASTNodePtr& node) {
                 if (node->line >= 0) {
                     msg += " [line " + std::to_string(node->line) + ", col " + std::to_string(node->column) + "]";
                 }
-                Logger::instance().log(LogLevel::ERROR, msg);
+                notifyError("call", msg, node->line, node->column, false);
                 return Value{};
             } else {
                 // qualified call
@@ -450,12 +450,12 @@ Value Runtime::evaluate(const ASTNodePtr& node) {
                     if (node->line >= 0) {
                         msg += " [line " + std::to_string(node->line) + ", col " + std::to_string(node->column) + "]";
                     }
-                    Logger::instance().log(LogLevel::ERROR, msg);
+                    notifyError("call", msg, node->line, node->column, false);
                     return Value{};
                 }
             }
         } catch(...) {
-            Logger::instance().log(LogLevel::ERROR, "Error evaluating function call");
+            notifyError("call", "Error evaluating function call", node->line, node->column, false);
             return Value{};
         }
     }
@@ -547,8 +547,7 @@ std::string Runtime::getNodeTypeString(const ASTNodePtr& node) const {
 }
 
 void Runtime::reportError(const std::string& context, const std::string& message) {
-    Logger::instance().log(LogLevel::ERROR, context + ": " + message);
-    state = RuntimeState::HALTED;
+    notifyError(context, message, -1, -1, true);
 }
 
 Value Runtime::invokeLambda(const std::string& lambdaId, const std::vector<Value>& args) {

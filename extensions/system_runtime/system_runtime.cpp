@@ -134,6 +134,36 @@ static inline int processId() {
 
 void register_runtime_functions(FunctionRegistry& reg) {
     // --------------------------------------------------------------------
+    // Lifecycle hooks / callbacks
+    // --------------------------------------------------------------------
+
+    // system.runtime.on(event: string, callback: lambda) -> bool
+    reg.registerFunction("system.runtime.on", [](const std::vector<Value>& args) -> Value {
+        if (!rt() || args.size() < 2 || !isString(args[0])) return Value(false);
+        return Value(rt()->addHook(std::get<std::string>(args[0]), args[1]));
+    });
+
+    // system.runtime.off(event: string) -> bool
+    reg.registerFunction("system.runtime.off", [](const std::vector<Value>& args) -> Value {
+        if (!rt() || args.empty() || !isString(args[0])) return Value(false);
+        return Value(rt()->clearHooks(std::get<std::string>(args[0])));
+    });
+
+    // system.runtime.clearHooks() -> bool
+    reg.registerFunction("system.runtime.clearHooks", [](const std::vector<Value>& args) -> Value {
+        (void)args;
+        if (!rt()) return Value(false);
+        rt()->clearAllHooks();
+        return Value(true);
+    });
+
+    // system.runtime.onError(callback: lambda) -> bool
+    reg.registerFunction("system.runtime.onError", [](const std::vector<Value>& args) -> Value {
+        if (!rt() || args.empty()) return Value(false);
+        return Value(rt()->addHook("error", args[0]));
+    });
+
+    // --------------------------------------------------------------------
     // Environment variables
     // --------------------------------------------------------------------
 

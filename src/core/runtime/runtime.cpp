@@ -306,9 +306,11 @@ void Runtime::loadExtensions() {
         for (auto& ext_dir : fs::directory_iterator(base_ext_dir)) {
             if (!fs::is_directory(ext_dir)) continue;
             
-            // Look for .dylib files in each extension directory
+            // Look for shared library files in each extension directory
+            // .dylib on macOS, .so on Linux
             for (auto& p : fs::recursive_directory_iterator(ext_dir)) {
-                if (p.path().extension() == ".dylib") {
+                std::string ext = p.path().extension().string();
+                if (ext == ".dylib" || ext == ".so" || ext == ".dll") {
                     void* handle = dlopen(p.path().c_str(), RTLD_LAZY | RTLD_GLOBAL);
                     if (handle) {
                         // Try with underscore first (macOS convention)

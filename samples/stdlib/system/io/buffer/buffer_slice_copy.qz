@@ -1,0 +1,38 @@
+// Buffer slicing and copying
+// Expected output:
+//   Original: Hello, World!
+//   Slice [0,5]: Hello
+//   Slice [7,12]: World
+//   Original unchanged: Hello, World!
+//   Copy: Hello, World!
+//   Buffers equal: true
+
+import system.io as io;
+import system.io.buffer as buf;
+
+let b = buf.fromString("Hello, World!");
+
+io.println("Original:");
+io.println(buf.toString(b));
+
+// Slice operations
+let slice1 = buf.slice(b, 0, 5);
+io.println("Slice [0,5]:");
+io.println(buf.toString(slice1));
+
+let slice2 = buf.slice(b, 7, 12);
+io.println("Slice [7,12]:");
+io.println(buf.toString(slice2));
+
+// Original should be unchanged
+io.println("Original unchanged:");
+io.println(buf.toString(b));
+
+// Copy buffer
+let copy = buf.copy(b);
+io.println("Copy:");
+io.println(buf.toString(copy));
+
+// Compare buffers
+io.println("Buffers equal:");
+io.println(buf.equals(b, copy));

@@ -1,0 +1,28 @@
+// Buffer append from another buffer
+// Expected output:
+//   Buffer A: Hello
+//   Buffer B: World
+//   After append A with B: HelloWorld
+//   B unchanged: World
+
+import system.io as io;
+import system.io.buffer as buf;
+
+let a = buf.fromString("Hello");
+let b = buf.fromString("World");
+
+io.println("Buffer A:");
+io.println(buf.toString(a));
+
+io.println("Buffer B:");
+io.println(buf.toString(b));
+
+// Append buffer b to a
+buf.append(a, b);
+
+io.println("After append A with B:");
+io.println(buf.toString(a));
+
+// B should be unchanged
+io.println("B unchanged:");
+io.println(buf.toString(b));

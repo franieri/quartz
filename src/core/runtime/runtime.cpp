@@ -320,6 +320,110 @@ std::string Runtime::taskError(const TaskRef& ref) const {
     return task->error;
 }
 
+// ============================================================================
+// Buffer Helpers
+// ============================================================================
+
+Value Runtime::makeBuffer(size_t initialCapacity) {
+    std::string bufferId = "__buffer_" + std::to_string(nextBufferId++);
+    bufferStorage[bufferId] = std::vector<uint8_t>();
+    if (initialCapacity > 0) {
+        bufferStorage[bufferId].reserve(initialCapacity);
+    }
+    return Value(BufferRef{bufferId});
+}
+
+Value Runtime::makeBufferFromString(const std::string& str) {
+    std::string bufferId = "__buffer_" + std::to_string(nextBufferId++);
+    bufferStorage[bufferId] = std::vector<uint8_t>(str.begin(), str.end());
+    return Value(BufferRef{bufferId});
+}
+
+std::vector<uint8_t>* Runtime::getBuffer(const BufferRef& ref) {
+    auto it = bufferStorage.find(ref.id);
+    if (it == bufferStorage.end()) return nullptr;
+    return &it->second;
+}
+
+const std::vector<uint8_t>* Runtime::getBuffer(const BufferRef& ref) const {
+    auto it = bufferStorage.find(ref.id);
+    if (it == bufferStorage.end()) return nullptr;
+    return &it->second;
+}
+
+size_t Runtime::bufferSize(const BufferRef& ref) const {
+    auto* buf = getBuffer(ref);
+    return buf ? buf->size() : 0;
+}
+
+size_t Runtime::bufferCapacity(const BufferRef& ref) const {
+    auto* buf = getBuffer(ref);
+    return buf ? buf->capacity() : 0;
+}
+
+std::string Runtime::bufferToString(const BufferRef& ref) const {
+    auto* buf = getBuffer(ref);
+    if (!buf) return "";
+    return std::string(buf->begin(), buf->end());
+}
+
+bool Runtime::bufferAppendString(const BufferRef& ref, const std::string& data) {
+    auto* buf = getBuffer(ref);
+    if (!buf) return false;
+    buf->insert(buf->end(), data.begin(), data.end());
+    return true;
+}
+
+bool Runtime::bufferAppendBuffer(const BufferRef& ref, const BufferRef& other) {
+    auto* buf = getBuffer(ref);
+    auto* otherBuf = getBuffer(other);
+    if (!buf || !otherBuf) return false;
+    buf->insert(buf->end(), otherBuf->begin(), otherBuf->end());
+    return true;
+}
+
+Value Runtime::bufferSlice(const BufferRef& ref, size_t start, size_t end) {
+    auto* buf = getBuffer(ref);
+    if (!buf) return makeBuffer(0);
+    
+    if (start >= buf->size()) start = buf->size();
+    if (end > buf->size()) end = buf->size();
+    if (start > end) start = end;
+    
+    std::string newBufferId = "__buffer_" + std::to_string(nextBufferId++);
+    bufferStorage[newBufferId] = std::vector<uint8_t>(buf->begin() + start, buf->begin() + end);
+    return Value(BufferRef{newBufferId});
+}
+
+bool Runtime::bufferClear(const BufferRef& ref) {
+    auto* buf = getBuffer(ref);
+    if (!buf) return false;
+    buf->clear();
+    return true;
+}
+
+Value Runtime::bufferCopy(const BufferRef& ref) {
+    auto* buf = getBuffer(ref);
+    if (!buf) return makeBuffer(0);
+    
+    std::string newBufferId = "__buffer_" + std::to_string(nextBufferId++);
+    bufferStorage[newBufferId] = *buf;
+    return Value(BufferRef{newBufferId});
+}
+
+int Runtime::bufferGetByte(const BufferRef& ref, size_t index) const {
+    auto* buf = getBuffer(ref);
+    if (!buf || index >= buf->size()) return -1;
+    return static_cast<int>((*buf)[index]);
+}
+
+bool Runtime::bufferSetByte(const BufferRef& ref, size_t index, uint8_t value) {
+    auto* buf = getBuffer(ref);
+    if (!buf || index >= buf->size()) return false;
+    (*buf)[index] = value;
+    return true;
+}
+
 static inline void appendFormatted(std::string& out, const Runtime* rt, const Value& val, bool quoteStrings) {
     std::visit([&](auto&& arg) {
         using T = std::decay_t<decltype(arg)>;
@@ -346,6 +450,14 @@ static inline void appendFormatted(std::string& out, const Runtime* rt, const Va
         } else if constexpr (std::is_same_v<T, TaskRef>) {
             out += "<task:";
             out += arg.id;
+            out += ">";
+        } else if constexpr (std::is_same_v<T, BufferRef>) {
+            out += "<buffer:";
+            out += arg.id;
+            if (rt) {
+                out += ",size=";
+                out += std::to_string(rt->bufferSize(arg));
+            }
             out += ">";
         }
     }, val);

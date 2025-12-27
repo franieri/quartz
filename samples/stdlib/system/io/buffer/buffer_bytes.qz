@@ -1,0 +1,29 @@
+// Byte-level access
+// Expected output:
+//   First byte (H=72): 72
+//   Second byte (e=101): 101
+//   After setByte, first char: X
+//   Full buffer: Xello
+
+import system.io as io;
+import system.io.buffer as buf;
+
+let b = buf.fromString("Hello");
+
+// Get bytes
+io.println("First byte (H=72):");
+io.println(buf.getByte(b, 0));
+
+io.println("Second byte (e=101):");
+io.println(buf.getByte(b, 1));
+
+// Set byte (X = 88)
+buf.setByte(b, 0, 88);
+
+// Get first character after modification
+let first = buf.slice(b, 0, 1);
+io.println("After setByte, first char:");
+io.println(buf.toString(first));
+
+io.println("Full buffer:");
+io.println(buf.toString(b));

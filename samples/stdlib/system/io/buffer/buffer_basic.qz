@@ -1,0 +1,22 @@
+// Basic buffer operations: create, size, toString
+// Expected output:
+//   Empty buffer size: 0
+//   Buffer from string size: 13
+//   Buffer content: Hello, World!
+
+import system.io as io;
+import system.io.buffer as buf;
+
+// Create empty buffer
+let empty = buf.create();
+io.println("Empty buffer size:");
+io.println(buf.size(empty));
+
+// Create buffer from string
+let b = buf.fromString("Hello, World!");
+io.println("Buffer from string size:");
+io.println(buf.size(b));
+
+// Convert back to string
+io.println("Buffer content:");
+io.println(buf.toString(b));

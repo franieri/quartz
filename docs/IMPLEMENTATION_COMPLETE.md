@@ -200,7 +200,7 @@ bash rebuild_core.sh
 
 ### Running
 ```bash
-./build/quartz samples/test_stdlib.qz
+./build/quartz samples/stdlib/stdlib_math_string_convert.qz
 ```
 
 ---

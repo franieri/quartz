@@ -337,8 +337,8 @@ struct ClassDef {
 ## Testing & Validation
 
 ### Test Files Created
-- `samples/test_oop.qz` - Basic class definitions and instantiation
-- `samples/showcase_oop.qz` - Comprehensive OOP showcase with multiple classes
+- `samples/language/oop/oop_basics_classes_objects.qz` - Basic class definitions and instantiation
+- `samples/language/oop/oop_showcase.qz` - Comprehensive OOP showcase with multiple classes
 
 ### Features Tested ✓
 - Class declaration with fields

@@ -1,0 +1,19 @@
+import system.io as io;
+
+io.out.println("=== Control Flow: for-in + do-while ===");
+
+let nums: int[] = [1, 2, 3, 4];
+let sum: int = 0;
+
+for (n in nums) {
+    sum += n;
+}
+
+io.out.println("sum(nums):", sum);
+
+var i: int = 0;
+do {
+    i += 1;
+} while (i < 3);
+
+io.out.println("i after do-while:", i);

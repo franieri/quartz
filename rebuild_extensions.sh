@@ -226,4 +226,4 @@ fi
 
 echo ""
 echo "To test an extension, run:"
-echo "  ./build/quartz samples/sample_import.qz"
+echo "  ./build/quartz samples/language/modules/imports_system_io_wildcard_stdin.qz"

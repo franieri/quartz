@@ -1,0 +1,20 @@
+// Task get blocks until completion
+// Expected output:
+//   Before get (task not ready yet)
+//   Got result: blocking works!
+//   After get
+
+import system.io as io;
+import system.async.task as task;
+
+// Create a task with 200ms delay
+let t = task.delay(200, "blocking works!");
+
+io.println("Before get (task not ready yet)");
+
+// This should block until the task completes
+let result = task.get(t);
+
+io.println("Got result:");
+io.println(result);
+io.println("After get");

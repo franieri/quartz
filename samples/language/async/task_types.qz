@@ -1,0 +1,27 @@
+// Task with different value types
+// Expected output:
+//   Int result: 42
+//   Double result: 3.140000
+//   String result: hello
+//   Bool result: true
+
+import system.io as io;
+import system.async.task as task;
+
+// Test different value types
+let tInt = task.delay(25, 42);
+let tDouble = task.delay(25, 3.14);
+let tString = task.delay(25, "hello");
+let tBool = task.delay(25, true);
+
+// Wait for all
+task.sleep(100);
+
+io.println("Int result:");
+io.println(task.get(tInt));
+io.println("Double result:");
+io.println(task.get(tDouble));
+io.println("String result:");
+io.println(task.get(tString));
+io.println("Bool result:");
+io.println(task.get(tBool));

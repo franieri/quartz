@@ -1,0 +1,21 @@
+// Poll alias demo: poll() is an alias for ready()
+// Expected output:
+//   poll() returns same as ready(): true
+
+import system.io as io;
+import system.async.task as task;
+
+let t = task.delay(50, "done");
+
+// Wait for completion
+task.sleep(100);
+
+// Both should return true
+let pollResult = task.poll(t);
+let readyResult = task.ready(t);
+
+if (pollResult == readyResult) {
+    io.println("poll() returns same as ready(): true");
+} else {
+    io.println("ERROR: poll() and ready() differ!");
+}

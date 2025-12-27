@@ -1,0 +1,24 @@
+// Task status demo: check status() and error() functions
+// Expected output:
+//   Created task, status: pending
+//   After completion, status: ok
+//   Error string (empty): 
+//   Result: success!
+
+import system.io as io;
+import system.async.task as task;
+
+let t = task.delay(50, "success!");
+
+io.println("Created task, status:");
+io.println(task.status(t));
+
+// Wait for completion
+task.sleep(100);
+
+io.println("After completion, status:");
+io.println(task.status(t));
+io.println("Error string (empty):");
+io.println(task.error(t));
+io.println("Result:");
+io.println(task.get(t));

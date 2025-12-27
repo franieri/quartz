@@ -1,0 +1,26 @@
+import system.io as io;
+import system.runtime as rt;
+
+io.println("--- system.runtime demo ---");
+
+// 1) Real runtime parameters
+io.println("Log level (before):", rt.getLogLevel());
+rt.setLogLevel("DEBUG");
+io.println("Log level (after):", rt.getLogLevel());
+
+io.println("Source dir:", rt.getSourceDir());
+
+// 2) Environment variables
+io.println("PATH:", rt.path());
+io.println("HOME:", rt.home());
+io.println("Has SHELL?", rt.hasEnv("SHELL"));
+io.println("SHELL:", rt.envOrDefault("SHELL", "(missing)"));
+
+// 3) System parameters
+io.println("OS:", rt.os());
+io.println("ARCH:", rt.arch());
+io.println("PID:", rt.pid());
+io.println("CWD:", rt.cwd());
+io.println("CPU count:", rt.cpuCount());
+io.println("Page size (bytes):", rt.pageSizeBytes());
+io.println("Total memory (bytes):", rt.memTotalBytes());

@@ -14,9 +14,6 @@ public:
 
     void log(LogLevel level, const std::string& message);
     void log(LogLevel level, const Token& token, const std::string& message);
-
-    void setAbortOnError(bool v) { abortOnError = v; }
-    bool getAbortOnError() const { return abortOnError; }
     
     void setMinLevel(LogLevel level) { minLevel = level; }
     LogLevel getMinLevel() const { return minLevel; }
@@ -24,7 +21,6 @@ public:
 private:
     Logger();
     std::mutex mtx;
-    bool abortOnError;
     LogLevel minLevel;
     const char* levelName(LogLevel l) const;
 };

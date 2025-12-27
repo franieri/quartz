@@ -1,0 +1,24 @@
+{
+  "name": "system.runtime",
+  "version": "1.0.0",
+  "description": "Runtime settings extension (get/set configuration at runtime)",
+  "functions": [
+    "system.runtime.env",
+    "system.runtime.envOrDefault",
+    "system.runtime.hasEnv",
+    "system.runtime.path",
+    "system.runtime.home",
+    "system.runtime.envAll",
+    "system.runtime.os",
+    "system.runtime.arch",
+    "system.runtime.cpuCount",
+    "system.runtime.pageSizeBytes",
+    "system.runtime.memTotalBytes",
+    "system.runtime.pid",
+    "system.runtime.cwd",
+    "system.runtime.getLogLevel",
+    "system.runtime.setLogLevel",
+    "system.runtime.getSourceDir",
+    "system.runtime.setSourceDir"
+  ]
+}

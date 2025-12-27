@@ -158,10 +158,10 @@ def main() -> int:
         )
 
     if ver >= 4:
-    ok = True
-    if header.magic not in (QZB1, JLB1_LEGACY):
-        print(f'Bad magic: {hex(header.magic)}', file=sys.stderr)
-        ok = False
+        ok = True
+        if header.magic not in (QZB1, JLB1_LEGACY):
+            print(f'Bad magic: {hex(header.magic)}', file=sys.stderr)
+            ok = False
 
     print(f'file: {p}')
     print(f'magic: {hex(header.magic)}')

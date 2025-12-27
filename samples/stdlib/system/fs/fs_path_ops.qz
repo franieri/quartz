@@ -1,0 +1,66 @@
+// Test system.fs path manipulation functions
+// Expected output:
+//   Current working directory exists:
+//   true
+//   Joined path:
+//   dir1/dir2/file.txt
+//   dirname result:
+//   /path/to
+//   basename result:
+//   file.txt
+//   extension result:
+//   .txt
+//   stem result:
+//   file
+//   isAbsolute /path:
+//   true
+//   isRelative relative/path:
+//   true
+//   normalized path:
+//   dir2/file.txt
+
+import system.io as io;
+import system.fs as fs;
+
+// Test cwd
+let cwd = fs.cwd();
+io.println("Current working directory exists:");
+io.println(fs.exists(cwd));
+
+// Test join
+let joined = fs.join("dir1", "dir2", "file.txt");
+io.println("Joined path:");
+io.println(joined);
+
+// Test dirname
+let dir = fs.dirname("/path/to/file.txt");
+io.println("dirname result:");
+io.println(dir);
+
+// Test basename
+let base = fs.basename("/path/to/file.txt");
+io.println("basename result:");
+io.println(base);
+
+// Test extension
+let ext = fs.extension("/path/to/file.txt");
+io.println("extension result:");
+io.println(ext);
+
+// Test stem (filename without extension)
+let stem_result = fs.stem("/path/to/file.txt");
+io.println("stem result:");
+io.println(stem_result);
+
+// Test isAbsolute
+io.println("isAbsolute /path:");
+io.println(fs.isAbsolute("/path"));
+
+// Test isRelative
+io.println("isRelative relative/path:");
+io.println(fs.isRelative("relative/path"));
+
+// Test normalize
+let normalized = fs.normalize("dir1/../dir2/./file.txt");
+io.println("normalized path:");
+io.println(normalized);

@@ -1,0 +1,68 @@
+// Test parallel async file operations
+// Expected output:
+//   Created test files:
+//   true
+//   true
+//   true
+//   Starting parallel async reads...
+//   Read 1:
+//   Content one
+//   Read 2:
+//   Content two
+//   Read 3:
+//   Content three
+//   Cleanup complete:
+//   true
+//   true
+//   true
+
+import system.io as io;
+import system.fs as fs;
+import system.async.task as task;
+
+// Create multiple test files for parallel operations
+let file1 = "build/parallel1.txt";
+let file2 = "build/parallel2.txt";
+let file3 = "build/parallel3.txt";
+
+// Write files synchronously first
+fs.write(file1, "Content one");
+fs.write(file2, "Content two");
+fs.write(file3, "Content three");
+
+io.println("Created test files:");
+io.println(fs.exists(file1));
+io.println(fs.exists(file2));
+io.println(fs.exists(file3));
+
+// Start multiple async reads in parallel
+io.println("Starting parallel async reads...");
+let task1 = fs.readAsync(file1);
+let task2 = fs.readAsync(file2);
+let task3 = fs.readAsync(file3);
+
+// Wait for all to complete
+let result1 = task.get(task1);
+let result2 = task.get(task2);
+let result3 = task.get(task3);
+
+io.println("Read 1:");
+io.println(result1);
+io.println("Read 2:");
+io.println(result2);
+io.println("Read 3:");
+io.println(result3);
+
+// Clean up with parallel deletes
+let del1 = fs.deleteAsync(file1);
+let del2 = fs.deleteAsync(file2);
+let del3 = fs.deleteAsync(file3);
+
+task.get(del1);
+task.get(del2);
+task.get(del3);
+
+io.println("Cleanup complete:");
+io.println(!fs.exists(file1));
+io.println(!fs.exists(file2));
+io.println(!fs.exists(file3));

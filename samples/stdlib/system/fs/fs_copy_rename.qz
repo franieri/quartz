@@ -1,0 +1,66 @@
+// Test system.fs copy and rename operations
+// Expected output:
+//   Source created:
+//   true
+//   Copy result:
+//   true
+//   Copy exists:
+//   true
+//   Copy content:
+//   Original content
+//   Rename result:
+//   true
+//   Original removed after rename:
+//   true
+//   Renamed file exists:
+//   true
+//   Cleanup complete:
+//   true
+//   true
+
+import system.io as io;
+import system.fs as fs;
+
+let srcFile = "build/test_copy_src.txt";
+let copyDest = "build/test_copy_dest.txt";
+let renameDest = "build/test_renamed.txt";
+
+// Create source file
+fs.write(srcFile, "Original content");
+io.println("Source created:");
+io.println(fs.exists(srcFile));
+
+// Test copy
+let copyResult = fs.copy(srcFile, copyDest);
+io.println("Copy result:");
+io.println(copyResult);
+
+// Verify copy exists
+io.println("Copy exists:");
+io.println(fs.exists(copyDest));
+
+// Verify copy content
+let copyContent = fs.read(copyDest);
+io.println("Copy content:");
+io.println(copyContent);
+
+// Test rename
+let renameResult = fs.rename(srcFile, renameDest);
+io.println("Rename result:");
+io.println(renameResult);
+
+// Verify renamed file exists && original doesn't
+let origGone = !fs.exists(srcFile);
+io.println("Original removed after rename:");
+io.println(origGone);
+
+io.println("Renamed file exists:");
+io.println(fs.exists(renameDest));
+
+// Clean up
+fs.delete(copyDest);
+fs.delete(renameDest);
+
+io.println("Cleanup complete:");
+io.println(!fs.exists(copyDest));
+io.println(!fs.exists(renameDest));

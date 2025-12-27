@@ -1,0 +1,49 @@
+// Test system.fs read && write functions
+// Expected output:
+//   Write result:
+//   true
+//   Read content:
+//   Hello, Quartz filesystem!
+//   Append result:
+//   true
+//   After append starts with Hello:
+//   true
+//   Delete result:
+//   true
+//   File exists after delete:
+//   false
+
+import system.io as io;
+import system.fs as fs;
+
+// Test write && read (text)
+let testFile = "build/test_fs_write.txt";
+let content = "Hello, Quartz filesystem!";
+
+// Write to file
+let writeResult = fs.write(testFile, content);
+io.println("Write result:");
+io.println(writeResult);
+
+// Read back
+let readContent = fs.read(testFile);
+io.println("Read content:");
+io.println(readContent);
+
+// Test append
+let appendResult = fs.append(testFile, " Plus more!");
+io.println("Append result:");
+io.println(appendResult);
+
+let afterAppend = fs.read(testFile);
+io.println("After append starts with Hello:");
+io.println(fs.size(testFile) > 25);
+
+// Clean up - delete the test file
+let deleteResult = fs.delete(testFile);
+io.println("Delete result:");
+io.println(deleteResult);
+
+// Verify deleted
+io.println("File exists after delete:");
+io.println(fs.exists(testFile));

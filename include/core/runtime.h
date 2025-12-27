@@ -303,6 +303,7 @@ private:
     std::unordered_map<std::string, std::vector<Value>> arrayStorage;  // Store actual arrays
     std::unordered_map<std::string, std::unordered_map<std::string, Value>> dictStorage;  // Store actual dicts
     std::unordered_map<std::string, std::vector<uint8_t>> bufferStorage;  // Store byte buffers
+    mutable std::mutex bufferStorageMtx;  // Protects bufferStorage map and nextBufferId
     std::unordered_map<std::string, std::string> varToArrayId;  // Map variable name to array ID
     std::unordered_map<std::string, std::string> varToDictId;   // Map variable name to dict ID
     RuntimeState state;
@@ -313,7 +314,7 @@ private:
     size_t nextArrayId = 0;  // Counter for unique array IDs
     size_t nextDictId = 0;   // Counter for unique dict IDs
     size_t nextLambdaId = 0; // Counter for unique lambda IDs
-    size_t nextBufferId = 0; // Counter for unique buffer IDs
+    std::atomic<size_t> nextBufferId{0}; // Counter for unique buffer IDs (atomic for thread safety)
     
     // Lambda/Closure storage
     struct StoredLambda {

@@ -1,0 +1,187 @@
+{
+  "name": "system.fs",
+  "version": "1.0.0",
+  "description": "Cross-platform filesystem operations for Quartz",
+  "functions": [
+    {
+      "name": "system.fs.exists",
+      "description": "Check if a path exists",
+      "params": ["path: string"],
+      "returns": "bool"
+    },
+    {
+      "name": "system.fs.isFile",
+      "description": "Check if path is a regular file",
+      "params": ["path: string"],
+      "returns": "bool"
+    },
+    {
+      "name": "system.fs.isDir",
+      "description": "Check if path is a directory",
+      "params": ["path: string"],
+      "returns": "bool"
+    },
+    {
+      "name": "system.fs.size",
+      "description": "Get file size in bytes",
+      "params": ["path: string"],
+      "returns": "int"
+    },
+    {
+      "name": "system.fs.read",
+      "description": "Read entire file as string",
+      "params": ["path: string"],
+      "returns": "string"
+    },
+    {
+      "name": "system.fs.readBytes",
+      "description": "Read entire file as buffer",
+      "params": ["path: string"],
+      "returns": "buffer"
+    },
+    {
+      "name": "system.fs.write",
+      "description": "Write string to file (creates or overwrites)",
+      "params": ["path: string", "content: string"],
+      "returns": "bool"
+    },
+    {
+      "name": "system.fs.writeBytes",
+      "description": "Write buffer to file (creates or overwrites)",
+      "params": ["path: string", "buffer: buffer"],
+      "returns": "bool"
+    },
+    {
+      "name": "system.fs.append",
+      "description": "Append string to file",
+      "params": ["path: string", "content: string"],
+      "returns": "bool"
+    },
+    {
+      "name": "system.fs.appendBytes",
+      "description": "Append buffer to file",
+      "params": ["path: string", "buffer: buffer"],
+      "returns": "bool"
+    },
+    {
+      "name": "system.fs.delete",
+      "description": "Delete a file",
+      "params": ["path: string"],
+      "returns": "bool"
+    },
+    {
+      "name": "system.fs.rename",
+      "description": "Rename or move a file/directory",
+      "params": ["from: string", "to: string"],
+      "returns": "bool"
+    },
+    {
+      "name": "system.fs.copy",
+      "description": "Copy a file",
+      "params": ["from: string", "to: string"],
+      "returns": "bool"
+    },
+    {
+      "name": "system.fs.mkdir",
+      "description": "Create a directory",
+      "params": ["path: string"],
+      "returns": "bool"
+    },
+    {
+      "name": "system.fs.mkdirs",
+      "description": "Create directory and all parent directories",
+      "params": ["path: string"],
+      "returns": "bool"
+    },
+    {
+      "name": "system.fs.rmdir",
+      "description": "Remove an empty directory",
+      "params": ["path: string"],
+      "returns": "bool"
+    },
+    {
+      "name": "system.fs.rmdirs",
+      "description": "Remove directory and all contents recursively",
+      "params": ["path: string"],
+      "returns": "bool"
+    },
+    {
+      "name": "system.fs.list",
+      "description": "List directory contents",
+      "params": ["path: string"],
+      "returns": "array<string>"
+    },
+    {
+      "name": "system.fs.cwd",
+      "description": "Get current working directory",
+      "params": [],
+      "returns": "string"
+    },
+    {
+      "name": "system.fs.abs",
+      "description": "Get absolute path",
+      "params": ["path: string"],
+      "returns": "string"
+    },
+    {
+      "name": "system.fs.join",
+      "description": "Join path components",
+      "params": ["parts...: string"],
+      "returns": "string"
+    },
+    {
+      "name": "system.fs.dirname",
+      "description": "Get parent directory of path",
+      "params": ["path: string"],
+      "returns": "string"
+    },
+    {
+      "name": "system.fs.basename",
+      "description": "Get filename from path",
+      "params": ["path: string"],
+      "returns": "string"
+    },
+    {
+      "name": "system.fs.extension",
+      "description": "Get file extension (with dot)",
+      "params": ["path: string"],
+      "returns": "string"
+    },
+    {
+      "name": "system.fs.readAsync",
+      "description": "Read file asynchronously, returns task",
+      "params": ["path: string"],
+      "returns": "task<string>"
+    },
+    {
+      "name": "system.fs.readBytesAsync",
+      "description": "Read file as buffer asynchronously",
+      "params": ["path: string"],
+      "returns": "task<buffer>"
+    },
+    {
+      "name": "system.fs.writeAsync",
+      "description": "Write string to file asynchronously",
+      "params": ["path: string", "content: string"],
+      "returns": "task<bool>"
+    },
+    {
+      "name": "system.fs.writeBytesAsync",
+      "description": "Write buffer to file asynchronously",
+      "params": ["path: string", "buffer: buffer"],
+      "returns": "task<bool>"
+    },
+    {
+      "name": "system.fs.copyAsync",
+      "description": "Copy file asynchronously",
+      "params": ["from: string", "to: string"],
+      "returns": "task<bool>"
+    },
+    {
+      "name": "system.fs.deleteAsync",
+      "description": "Delete file asynchronously",
+      "params": ["path: string"],
+      "returns": "task<bool>"
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+// Test system.fs rmdirs (recursive directory removal)
+// Expected output:
+//   Created nested dirs:
+//   true
+//   Created files in structure:
+//   true
+//   rmdirs result:
+//   true
+//   Base dir removed:
+//   true
+//   Nested dirs removed:
+//   true
+
+import system.io as io;
+import system.fs as fs;
+
+// Create a nested directory structure
+let baseDir = "build/test_rmdirs";
+let level1 = fs.join(baseDir, "level1");
+let level2 = fs.join(level1, "level2");
+
+fs.mkdirs(level2);
+io.println("Created nested dirs:");
+io.println(fs.exists(level2));
+
+// Create some files in the structure
+fs.write(fs.join(baseDir, "root.txt"), "root file");
+fs.write(fs.join(level1, "mid.txt"), "mid file");  
+fs.write(fs.join(level2, "deep.txt"), "deep file");
+
+io.println("Created files in structure:");
+io.println(fs.exists(fs.join(level2, "deep.txt")));
+
+// Now remove everything recursively
+let result = fs.rmdirs(baseDir);
+io.println("rmdirs result:");
+io.println(result);
+
+// Verify everything is gone
+let baseGone = !fs.exists(baseDir);
+io.println("Base dir removed:");
+io.println(baseGone);
+
+let nestedGone = !fs.exists(level2);
+io.println("Nested dirs removed:");
+io.println(nestedGone);

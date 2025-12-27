@@ -1,6 +1,5 @@
 #include "logger.h"
 #include <iostream>
-#include <stdexcept>
 
 Logger& Logger::instance() {
     static Logger lg;
@@ -8,7 +7,7 @@ Logger& Logger::instance() {
 }
 
 // Default: only show WARNING and ERROR (suppress DEBUG/INFO/NOTICE)
-Logger::Logger() : abortOnError(true), minLevel(LogLevel::WARNING) {}
+Logger::Logger() : minLevel(LogLevel::WARNING) {}
 
 const char* Logger::levelName(LogLevel l) const {
     switch (l) {
@@ -28,9 +27,6 @@ void Logger::log(LogLevel level, const std::string& message) {
     std::lock_guard<std::mutex> lk(mtx);
     std::cerr << "[" << levelName(level) << "] " << message << std::endl;
     std::cerr << std::flush;
-    if (level == LogLevel::ERROR && abortOnError) {
-        throw std::runtime_error(message);
-    }
 }
 
 void Logger::log(LogLevel level, const Token& token, const std::string& message) {
@@ -46,7 +42,4 @@ void Logger::log(LogLevel level, const Token& token, const std::string& message)
     if (!token.lexeme.empty()) std::cerr << " (near '" << token.lexeme << "')";
     std::cerr << std::endl;
     std::cerr << std::flush;
-    if (level == LogLevel::ERROR && abortOnError) {
-        throw std::runtime_error(message);
-    }
 }

@@ -78,6 +78,10 @@ void Runtime::setSourcePath(const std::string& path) {
     sourceDirectory = fs::path(path).parent_path().string();
 }
 
+void Runtime::setSourceDirectory(const std::string& dir) {
+    sourceDirectory = dir;
+}
+
 void Runtime::execute(const AST& ast) {
     for (const auto& node : ast.nodes) {
         if (state == RuntimeState::HALTED) break;

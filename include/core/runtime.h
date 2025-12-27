@@ -161,6 +161,7 @@ public:
     
     // Source file management (for module resolution)
     void setSourcePath(const std::string& path);
+    void setSourceDirectory(const std::string& dir);
     std::string getSourceDirectory() const { return sourceDirectory; }
     
     // Variable management

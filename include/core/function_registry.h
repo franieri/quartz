@@ -8,6 +8,7 @@
 #include <vector>
 #include <set>
 #include "types.h"
+#include "qz_export.h"
 
 class FunctionRegistry {
 public:
@@ -39,6 +40,6 @@ private:
 // Quartz naming convention (Qz prefix)
 using QzFunctionRegistry = FunctionRegistry;
 
-extern FunctionRegistry* global_reg_ptr __attribute__((visibility("default")));
+extern QZ_CORE_API FunctionRegistry* global_reg_ptr;
 
 #endif // FUNCTION_REGISTRY_H

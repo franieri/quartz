@@ -8,6 +8,7 @@
 #include <unordered_set>
 #include <map>
 #include <stdexcept>
+#include "qz_export.h"
 
 // Forward declaration
 class ObjectInstance;
@@ -291,7 +292,7 @@ private:
 
 // Exported pointer to the most recently-initialized Runtime instance.
 // This is used by stdlib/extension helpers that need container storage.
-extern Runtime* global_runtime_ptr __attribute__((visibility("default")));
+extern QZ_CORE_API Runtime* global_runtime_ptr;
 
 // Quartz naming convention (Qz prefix)
 using QzRuntime = Runtime;

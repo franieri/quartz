@@ -1,0 +1,76 @@
+// Stress test: Many concurrent tasks using thread pool
+// This demonstrates that the thread pool efficiently handles many tasks
+// without creating a new thread for each one.
+// Expected output:
+//   Submitting 20 tasks...
+//   All tasks submitted!
+//   Waiting for completion...
+//   All 20 tasks completed!
+//   Sum of results: 190
+
+import system.io as io;
+import system.async.task as task;
+
+io.println("Submitting 20 tasks...");
+
+// Create array to hold tasks (we'll use individual vars since arrays of tasks need special handling)
+let t0 = task.delay(50, 0);
+let t1 = task.delay(50, 1);
+let t2 = task.delay(50, 2);
+let t3 = task.delay(50, 3);
+let t4 = task.delay(50, 4);
+let t5 = task.delay(50, 5);
+let t6 = task.delay(50, 6);
+let t7 = task.delay(50, 7);
+let t8 = task.delay(50, 8);
+let t9 = task.delay(50, 9);
+let t10 = task.delay(50, 10);
+let t11 = task.delay(50, 11);
+let t12 = task.delay(50, 12);
+let t13 = task.delay(50, 13);
+let t14 = task.delay(50, 14);
+let t15 = task.delay(50, 15);
+let t16 = task.delay(50, 16);
+let t17 = task.delay(50, 17);
+let t18 = task.delay(50, 18);
+let t19 = task.delay(50, 19);
+
+io.println("All tasks submitted!");
+io.println("Waiting for completion...");
+
+// Wait for all to be ready
+while (!task.ready(t0) || !task.ready(t1) || !task.ready(t2) || !task.ready(t3) ||
+       !task.ready(t4) || !task.ready(t5) || !task.ready(t6) || !task.ready(t7) ||
+       !task.ready(t8) || !task.ready(t9) || !task.ready(t10) || !task.ready(t11) ||
+       !task.ready(t12) || !task.ready(t13) || !task.ready(t14) || !task.ready(t15) ||
+       !task.ready(t16) || !task.ready(t17) || !task.ready(t18) || !task.ready(t19)) {
+    task.sleep(10);
+}
+
+io.println("All 20 tasks completed!");
+
+// Sum all results
+var sum = 0;
+sum = sum + task.get(t0);
+sum = sum + task.get(t1);
+sum = sum + task.get(t2);
+sum = sum + task.get(t3);
+sum = sum + task.get(t4);
+sum = sum + task.get(t5);
+sum = sum + task.get(t6);
+sum = sum + task.get(t7);
+sum = sum + task.get(t8);
+sum = sum + task.get(t9);
+sum = sum + task.get(t10);
+sum = sum + task.get(t11);
+sum = sum + task.get(t12);
+sum = sum + task.get(t13);
+sum = sum + task.get(t14);
+sum = sum + task.get(t15);
+sum = sum + task.get(t16);
+sum = sum + task.get(t17);
+sum = sum + task.get(t18);
+sum = sum + task.get(t19);
+
+io.println("Sum of results:");
+io.println(sum);

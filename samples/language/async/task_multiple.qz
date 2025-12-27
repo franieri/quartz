@@ -1,0 +1,33 @@
+// Multiple concurrent tasks demo
+// Expected output:
+//   Starting 3 tasks...
+//   Waiting for all tasks...
+//   All tasks completed!
+//   Task A: first
+//   Task B: second
+//   Task C: third
+
+import system.io as io;
+import system.async.task as task;
+
+io.println("Starting 3 tasks...");
+
+// These all start immediately and run concurrently
+let taskA = task.delay(150, "first");
+let taskB = task.delay(50, "second");
+let taskC = task.delay(100, "third");
+
+io.println("Waiting for all tasks...");
+
+// Wait for all to complete
+while (!task.ready(taskA) || !task.ready(taskB) || !task.ready(taskC)) {
+    task.sleep(25);
+}
+
+io.println("All tasks completed!");
+io.println("Task A:");
+io.println(task.get(taskA));
+io.println("Task B:");
+io.println(task.get(taskB));
+io.println("Task C:");
+io.println(task.get(taskC));

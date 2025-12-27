@@ -1,0 +1,17 @@
+// Basic async task demo: delay and get
+// Expected output:
+//   Task created
+//   Waiting for result...
+//   Result:
+//   Hello from async!
+
+import system.io as io;
+import system.async.task as task;
+
+io.println("Task created");
+let t = task.delay(100, "Hello from async!");
+
+io.println("Waiting for result...");
+let result = task.get(t);
+io.println("Result:");
+io.println(result);

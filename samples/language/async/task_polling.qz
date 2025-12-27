@@ -1,0 +1,24 @@
+// Async polling demo: ready() and poll() transitions
+// Expected output:
+//   Starting task...
+//   Polling... ready=false
+//   (possibly more Polling... lines)
+//   Task completed! ready=true
+//   Result:
+//   42
+
+import system.io as io;
+import system.async.task as task;
+
+io.println("Starting task...");
+let t = task.delay(150, 42);
+
+// Poll until ready
+while (!task.ready(t)) {
+    io.println("Polling... ready=false");
+    task.sleep(50);
+}
+
+io.println("Task completed! ready=true");
+io.println("Result:");
+io.println(task.get(t));

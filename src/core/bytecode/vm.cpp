@@ -89,6 +89,7 @@ bool BytecodeVM::evalCondition(const Value& v) const {
         if constexpr (std::is_same_v<T, bool>) return arg;
         else if constexpr (std::is_arithmetic_v<T>) return arg != 0;
         else if constexpr (std::is_same_v<T, std::string>) return !arg.empty();
+        else if constexpr (std::is_same_v<T, TaskRef>) return true;  // Task handle is truthy
         else return false;
     }, v);
 }

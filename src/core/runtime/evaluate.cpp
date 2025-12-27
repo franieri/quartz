@@ -26,6 +26,10 @@ static inline void appendValueToString(std::string& out, const Value& val, bool 
             }
         } else if constexpr (std::is_same_v<T, bool>) {
             out += arg ? "true" : "false";
+        } else if constexpr (std::is_same_v<T, TaskRef>) {
+            out += "<task:";
+            out += arg.id;
+            out += ">";
         }
     }, val);
 }
@@ -301,8 +305,10 @@ Value Runtime::evaluate(const ASTNodePtr& node) {
         } else if (op == "!") {
             // Logical NOT
             bool val = std::visit([](auto&& arg) -> bool {
-                if constexpr (std::is_same_v<std::decay_t<decltype(arg)>, bool>) return arg;
-                else if constexpr (std::is_arithmetic_v<std::decay_t<decltype(arg)>>) return arg != 0;
+                using T = std::decay_t<decltype(arg)>;
+                if constexpr (std::is_same_v<T, bool>) return arg;
+                else if constexpr (std::is_arithmetic_v<T>) return arg != 0;
+                else if constexpr (std::is_same_v<T, TaskRef>) return true;  // Task handle is truthy
                 else return false;
             }, operand);
             return Value(!val);

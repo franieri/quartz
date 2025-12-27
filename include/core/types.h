@@ -19,6 +19,12 @@ struct DictRef {
     std::string id;
 };
 
+// TaskRef: handle to an async task (background work).
+// Tasks live in Runtime storage; Quartz can poll/get the result.
+struct TaskRef {
+    std::string id;
+};
+
 // ============================================================================
 // Node Type Enumeration
 // ============================================================================
@@ -181,7 +187,7 @@ struct TypeAnnotation {
 };
 
 // Runtime Value type
-using Value = std::variant<int, double, std::string, bool, ArrayRef, DictRef>;
+using Value = std::variant<int, double, std::string, bool, ArrayRef, DictRef, TaskRef>;
 
 // Optional value (implements Option<T>)
 template<typename T>

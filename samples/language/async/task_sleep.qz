@@ -1,0 +1,13 @@
+// Sleep demo: blocking sleep for timing
+// Expected output:
+//   Before sleep
+//   After 100ms sleep
+//   Done!
+
+import system.io as io;
+import system.async.task as task;
+
+io.println("Before sleep");
+task.sleep(100);
+io.println("After 100ms sleep");
+io.println("Done!");

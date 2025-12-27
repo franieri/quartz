@@ -16,6 +16,8 @@
 #include <algorithm>
 #include <dlfcn.h>
 #include <cctype>
+#include <thread>
+#include <chrono>
 
 #if defined(__APPLE__)
 #include <mach-o/dyld.h>
@@ -105,7 +107,86 @@ void Runtime::execute(const AST& ast) {
 
 void Runtime::initialize() {
     global_runtime_ptr = this;
+    initThreadPool();
     initStandardLibrary();
+}
+
+// ============================================================================
+// Thread Pool Implementation
+// ============================================================================
+
+void Runtime::initThreadPool() {
+    threadPoolShutdown = false;
+    threadPoolWorkers.reserve(kThreadPoolSize);
+    for (size_t i = 0; i < kThreadPoolSize; ++i) {
+        threadPoolWorkers.emplace_back(&Runtime::threadPoolWorkerLoop, this);
+    }
+}
+
+void Runtime::threadPoolWorkerLoop() {
+    while (true) {
+        WorkItem item;
+        {
+            std::unique_lock<std::mutex> lock(workQueueMtx);
+            workQueueCv.wait(lock, [this]() {
+                return threadPoolShutdown || !workQueue.empty();
+            });
+            
+            if (threadPoolShutdown && workQueue.empty()) {
+                return;  // Exit thread
+            }
+            
+            item = std::move(workQueue.front());
+            workQueue.pop();
+        }
+        
+        // Execute the work item
+        try {
+            Value result = item.work();
+            {
+                std::lock_guard<std::mutex> lock(item.task->mtx);
+                item.task->result = result;
+                item.task->state = TaskState::Fulfilled;
+            }
+            item.task->cv.notify_all();
+        } catch (const std::exception& e) {
+            {
+                std::lock_guard<std::mutex> lock(item.task->mtx);
+                item.task->error = e.what();
+                item.task->state = TaskState::Rejected;
+            }
+            item.task->cv.notify_all();
+        } catch (...) {
+            {
+                std::lock_guard<std::mutex> lock(item.task->mtx);
+                item.task->error = "Unknown error in task";
+                item.task->state = TaskState::Rejected;
+            }
+            item.task->cv.notify_all();
+        }
+    }
+}
+
+Runtime::~Runtime() {
+    // Signal shutdown and wake all workers
+    {
+        std::lock_guard<std::mutex> lock(workQueueMtx);
+        threadPoolShutdown = true;
+    }
+    workQueueCv.notify_all();
+    
+    // Wait for all workers to finish
+    for (auto& worker : threadPoolWorkers) {
+        if (worker.joinable()) {
+            worker.join();
+        }
+    }
+    threadPoolWorkers.clear();
+    
+    // Clear global pointer if it points to us
+    if (global_runtime_ptr == this) {
+        global_runtime_ptr = nullptr;
+    }
 }
 
 std::vector<Value>* Runtime::getArray(const ArrayRef& ref) {
@@ -144,6 +225,101 @@ Value Runtime::makeDict(std::unordered_map<std::string, Value> entries) {
     return Value(DictRef{dictId});
 }
 
+// ============================================================================
+// Task/Async Helpers
+// ============================================================================
+
+Value Runtime::submitTask(std::function<Value()> work) {
+    std::string taskId = "__task_" + std::to_string(nextTaskId++);
+    auto task = std::make_shared<StoredTask>();
+    {
+        std::lock_guard<std::mutex> lock(taskStorageMtx);
+        taskStorage[taskId] = task;
+    }
+    
+    // Queue work for thread pool execution
+    {
+        std::lock_guard<std::mutex> lock(workQueueMtx);
+        workQueue.push(WorkItem{task, std::move(work)});
+    }
+    workQueueCv.notify_one();
+    
+    return Value(TaskRef{taskId});
+}
+
+Value Runtime::submitDelayedTask(int delayMs, const Value& value) {
+    // Copy value to capture in lambda (since it may be moved)
+    Value capturedValue = value;
+    return submitTask([delayMs, capturedValue]() -> Value {
+        std::this_thread::sleep_for(std::chrono::milliseconds(delayMs));
+        return capturedValue;
+    });
+}
+
+bool Runtime::taskReady(const TaskRef& ref) const {
+    std::shared_ptr<StoredTask> task;
+    {
+        std::lock_guard<std::mutex> lock(taskStorageMtx);
+        auto it = taskStorage.find(ref.id);
+        if (it == taskStorage.end()) return true;  // Unknown task treated as done
+        task = it->second;
+    }
+    std::lock_guard<std::mutex> lock(task->mtx);
+    return task->state != TaskState::Pending;
+}
+
+Value Runtime::taskGet(const TaskRef& ref) {
+    std::shared_ptr<StoredTask> task;
+    {
+        std::lock_guard<std::mutex> lock(taskStorageMtx);
+        auto it = taskStorage.find(ref.id);
+        if (it == taskStorage.end()) {
+            throw LanguageException("RuntimeError", "Unknown task: " + ref.id);
+        }
+        task = it->second;
+    }
+    
+    // Wait for completion
+    {
+        std::unique_lock<std::mutex> lock(task->mtx);
+        task->cv.wait(lock, [&task]() { return task->state != TaskState::Pending; });
+        
+        if (task->state == TaskState::Rejected) {
+            throw LanguageException("RuntimeError", task->error);
+        }
+        return task->result;
+    }
+}
+
+std::string Runtime::taskStatus(const TaskRef& ref) const {
+    std::shared_ptr<StoredTask> task;
+    {
+        std::lock_guard<std::mutex> lock(taskStorageMtx);
+        auto it = taskStorage.find(ref.id);
+        if (it == taskStorage.end()) return "error";
+        task = it->second;
+    }
+    std::lock_guard<std::mutex> lock(task->mtx);
+    switch (task->state) {
+        case TaskState::Pending: return "pending";
+        case TaskState::Fulfilled: return "ok";
+        case TaskState::Rejected: return "error";
+    }
+    return "unknown";
+}
+
+std::string Runtime::taskError(const TaskRef& ref) const {
+    std::shared_ptr<StoredTask> task;
+    {
+        std::lock_guard<std::mutex> lock(taskStorageMtx);
+        auto it = taskStorage.find(ref.id);
+        if (it == taskStorage.end()) return "Unknown task";
+        task = it->second;
+    }
+    std::lock_guard<std::mutex> lock(task->mtx);
+    return task->error;
+}
+
 static inline void appendFormatted(std::string& out, const Runtime* rt, const Value& val, bool quoteStrings) {
     std::visit([&](auto&& arg) {
         using T = std::decay_t<decltype(arg)>;
@@ -167,6 +343,10 @@ static inline void appendFormatted(std::string& out, const Runtime* rt, const Va
         } else if constexpr (std::is_same_v<T, DictRef>) {
             if (rt) out += rt->formatDictById(arg.id, quoteStrings);
             else out += "<dict>";
+        } else if constexpr (std::is_same_v<T, TaskRef>) {
+            out += "<task:";
+            out += arg.id;
+            out += ">";
         }
     }, val);
 }

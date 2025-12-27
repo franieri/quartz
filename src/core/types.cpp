@@ -16,6 +16,8 @@ static inline std::string primitive_to_string(const Value& v) {
             return "<array>";
         } else if constexpr (std::is_same_v<T, DictRef>) {
             return "<dict>";
+        } else if constexpr (std::is_same_v<T, TaskRef>) {
+            return "<task:" + arg.id + ">";
         } else {
             return "unknown";
         }

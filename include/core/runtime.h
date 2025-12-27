@@ -8,6 +8,12 @@
 #include <unordered_set>
 #include <map>
 #include <stdexcept>
+#include <mutex>
+#include <condition_variable>
+#include <atomic>
+#include <thread>
+#include <queue>
+#include <vector>
 #include "qz_export.h"
 
 // Forward declaration
@@ -149,7 +155,8 @@ enum class RuntimeState { IDLE, EXECUTING, HALTED, COMPLETED };
 class Runtime {
     friend class BytecodeVM;
 public:
-    Runtime() : state(RuntimeState::IDLE) {}
+    Runtime() : state(RuntimeState::IDLE), threadPoolShutdown(false) {}
+    ~Runtime();  // Destructor to clean up thread pool
 
     // Initialize standard library + extensions (should be called before execution)
     void initialize();
@@ -214,6 +221,31 @@ public:
     Value makeArray(std::vector<Value> elements);
     Value makeDict(std::unordered_map<std::string, Value> entries);
 
+    // ------------------------------------------------------------------------
+    // Task helpers (async background work)
+    // ------------------------------------------------------------------------
+    enum class TaskState { Pending, Fulfilled, Rejected };
+    
+    // Submit work that will run on a background thread. Returns a TaskRef immediately.
+    // The work function should NOT call back into the interpreter/VM.
+    Value submitTask(std::function<Value()> work);
+    
+    // Create a delayed task that resolves to `value` after `delayMs` milliseconds.
+    Value submitDelayedTask(int delayMs, const Value& value);
+    
+    // Check if a task has completed (fulfilled or rejected).
+    bool taskReady(const TaskRef& ref) const;
+    
+    // Get the result of a completed task. Blocks until done.
+    // Throws LanguageException if the task was rejected.
+    Value taskGet(const TaskRef& ref);
+    
+    // Get task status as a string: "pending", "ok", or "error"
+    std::string taskStatus(const TaskRef& ref) const;
+    
+    // Get error message if task was rejected; empty string otherwise.
+    std::string taskError(const TaskRef& ref) const;
+
     // Formatting (used by to_string(Value) and I/O)
     std::string formatValue(const Value& v, bool quoteStrings = false) const;
     std::string formatArrayById(const std::string& arrayId, bool quoteStrings = false) const;
@@ -248,6 +280,33 @@ private:
     };
     std::unordered_map<std::string, StoredLambda> lambdaStorage;  // Store lambda closures
     std::unordered_map<std::string, std::string> varToLambdaId;  // Map variable name to lambda ID
+
+    // Task/async storage
+    struct StoredTask {
+        TaskState state = TaskState::Pending;
+        Value result;
+        std::string error;
+        mutable std::mutex mtx;
+        mutable std::condition_variable cv;
+    };
+    std::unordered_map<std::string, std::shared_ptr<StoredTask>> taskStorage;
+    mutable std::mutex taskStorageMtx;  // Protects taskStorage map itself
+    std::atomic<size_t> nextTaskId{0};
+
+    // Thread pool for async task execution
+    struct WorkItem {
+        std::shared_ptr<StoredTask> task;
+        std::function<Value()> work;
+    };
+    std::vector<std::thread> threadPoolWorkers;
+    std::queue<WorkItem> workQueue;
+    std::mutex workQueueMtx;
+    std::condition_variable workQueueCv;
+    std::atomic<bool> threadPoolShutdown;
+    static constexpr size_t kThreadPoolSize = 4;  // Configurable pool size
+    
+    void initThreadPool();
+    void threadPoolWorkerLoop();
 
     // If set, used to invoke lambdas by id from outside the interpreter (e.g. bytecode VM).
     std::function<Value(const std::string&, const std::vector<Value>&)> externalLambdaInvoker;

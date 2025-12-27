@@ -1,0 +1,43 @@
+{
+    "name": "system_async_task",
+    "version": "1.0.0",
+    "description": "Async task primitives for background work with polling/blocking get",
+    "namespace": "system.async.task",
+    "functions": [
+        {
+            "name": "delay",
+            "signature": "(ms: int, value: any) -> task",
+            "description": "Returns a task that resolves to value after ms milliseconds"
+        },
+        {
+            "name": "sleep",
+            "signature": "(ms: int) -> bool",
+            "description": "Blocks current thread for ms milliseconds"
+        },
+        {
+            "name": "ready",
+            "signature": "(t: task) -> bool",
+            "description": "Returns true if task has completed"
+        },
+        {
+            "name": "poll",
+            "signature": "(t: task) -> bool",
+            "description": "Alias for ready()"
+        },
+        {
+            "name": "get",
+            "signature": "(t: task) -> any",
+            "description": "Blocks until task completes and returns result; throws on rejection"
+        },
+        {
+            "name": "status",
+            "signature": "(t: task) -> string",
+            "description": "Returns 'pending', 'ok', or 'error'"
+        },
+        {
+            "name": "error",
+            "signature": "(t: task) -> string",
+            "description": "Returns error message if rejected; empty string otherwise"
+        }
+    ]
+}

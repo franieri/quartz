@@ -9,13 +9,13 @@ A small but brave programming language with a familiar curly-brace syntax, a tre
 bash rebuild_core.sh
 
 # Run a sample
-./build/quartz samples/sample_import.qz
+./build/quartz samples/language/modules/imports_system_io_wildcard_stdin.qz
 
 # Run in bytecode mode
-./build/quartz --compile-run samples/sample_import.qz
+./build/quartz --compile-run samples/language/modules/imports_system_io_wildcard_stdin.qz
 
 # Run with input
-echo "your input" | ./build/quartz samples/sample_import.qz
+echo "your input" | ./build/quartz samples/language/modules/imports_system_io_wildcard_stdin.qz
 ```
 
 ## Features
@@ -57,10 +57,10 @@ cd build && make
 ### Sample Programs
 ```bash
 # Basic import and namespace usage
-./build/quartz samples/sample_import.qz
+./build/quartz samples/language/modules/imports_system_io_wildcard_stdin.qz
 
 # With input
-echo "test" | ./build/quartz samples/sample_import.qz
+echo "test" | ./build/quartz samples/language/modules/imports_system_io_wildcard_stdin.qz
 ```
 
 ### Command Line
@@ -71,6 +71,49 @@ echo "test" | ./build/quartz samples/sample_import.qz
 ### Bytecode Mode
 ```bash
 ./build/quartz --compile-run <source-file>
+```
+
+## Scripts
+
+All shell scripts at the repository root:
+
+### rebuild_core.sh
+
+- Full CMake reconfigure + rebuild of the core (`qz-core` + `quartz`) and all extensions.
+- Usage: `bash rebuild_core.sh [--clean] [--verbose]`
+
+### rebuild_extensions.sh
+
+- Rebuild/manage extensions (helper script for extension development workflows).
+
+### sanity_check.sh
+
+- Deletes all generated `.qzb` files under `samples/`.
+- Traverses `samples/` and, for every `.qz`:
+    - Runs interpreter mode (`--interp`)
+    - Compiles to bytecode (`--compile -o <output.qzb>`)
+    - Runs the produced bytecode (`--run-bc <output.qzb>`)
+- This validates the interpreter, compiler, VM, and runtime on the full sample suite.
+- Run: `./sanity_check.sh`
+
+### feature_check.sh
+
+- Runs `sanity_check.sh` (interp + compile + run-bc for every sample).
+- Then validates `--dump-qzb-meta` for every produced `.qzb` (tests bytecode metadata path).
+- Run: `./feature_check.sh`
+
+### compile_run_check.sh
+
+- Traverses `samples/` and runs `--compile-run` for every `.qz` (tests that combined codepath separately).
+- Run: `./compile_run_check.sh`
+
+### Verified
+
+These are expected to pass on a working build:
+
+```bash
+./feature_check.sh
+./compile_run_check.sh
 ```
 
 ## Language Syntax

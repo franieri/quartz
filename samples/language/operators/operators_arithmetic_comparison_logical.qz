@@ -1,0 +1,28 @@
+import system.io as io;
+
+io.out.println("=== Operators: arithmetic + comparison + logical ===");
+
+let a: int = 7;
+let b: int = 3;
+
+io.out.println("a:", a);
+io.out.println("b:", b);
+
+io.out.println("a + b:", a + b);
+io.out.println("a - b:", a - b);
+io.out.println("a * b:", a * b);
+io.out.println("a / b:", a / b);
+
+io.out.println("a == b:", a == b);
+io.out.println("a != b:", a != b);
+io.out.println("a < b:", a < b);
+io.out.println("a <= b:", a <= b);
+io.out.println("a > b:", a > b);
+io.out.println("a >= b:", a >= b);
+
+let ok: bool = (a > 0) && (b > 0);
+let either: bool = (a < 0) || (b > 0);
+
+io.out.println("(a>0 && b>0):", ok);
+io.out.println("(a<0 || b>0):", either);
+io.out.println("!ok:", !ok);

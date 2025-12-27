@@ -1,0 +1,24 @@
+import system.io as io;
+
+io.out.println("=== Functions: params + return ===");
+
+fn add(a: int, b: int) -> int {
+    return a + b;
+}
+
+fn sign(x: int) -> int {
+    if (x < 0) {
+        return -1;
+    } else {
+        return 1;
+    }
+}
+
+fn greet(name: string) -> string {
+    return "Hello, \{name}!";
+}
+
+io.out.println("add(2, 3):", add(2, 3));
+io.out.println("sign(-5):", sign(-5));
+io.out.println("sign(0):", sign(0));
+io.out.println(greet("Quartz"));

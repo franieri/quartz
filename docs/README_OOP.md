@@ -395,8 +395,8 @@ Quartz now features **a comprehensive, pleasant OOP system** that:
 - **OOP_IMPLEMENTATION_SUMMARY.md** - Implementation details
 - **OOP_COMPARISON_GUIDE.md** - Language comparisons
 - **SYNTAX_COMPLETE.md** - Full syntax guide
-- **samples/test_oop.qz** - Example 1
-- **samples/showcase_oop.qz** - Example 2
+- **samples/language/oop/oop_basics_classes_objects.qz** - Example 1
+- **samples/language/oop/oop_showcase.qz** - Example 2
 
 ---
 

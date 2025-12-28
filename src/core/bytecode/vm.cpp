@@ -114,7 +114,18 @@ Value BytecodeVM::applyBinary(const Value& left, const Value& right, bc::BinaryO
             case bc::BinaryOp::ADD: return Value(l + r);
             case bc::BinaryOp::SUB: return Value(l - r);
             case bc::BinaryOp::MUL: return Value(l * r);
-            case bc::BinaryOp::DIV: return Value(l / r);
+            case bc::BinaryOp::DIV:
+                // Check for division by zero
+                if constexpr (std::is_integral_v<R>) {
+                    if (r == 0) {
+                        throw LanguageException("ArithmeticError", "Division by zero");
+                    }
+                } else if constexpr (std::is_floating_point_v<R>) {
+                    if (r == 0.0) {
+                        throw LanguageException("ArithmeticError", "Division by zero");
+                    }
+                }
+                return Value(l / r);
             case bc::BinaryOp::EQ: return Value(l == r);
             case bc::BinaryOp::NE: return Value(l != r);
             case bc::BinaryOp::LT: return Value(l < r);
@@ -146,7 +157,10 @@ Value BytecodeVM::indexGet(const std::string& varName, const Value& indexValue) 
         auto it = runtime.arrayStorage.find(aIt->second);
         if (it != runtime.arrayStorage.end()) {
             auto& vec = it->second;
-            if (idx >= 0 && idx < (int)vec.size()) return vec[idx];
+            if (idx < 0 || idx >= (int)vec.size()) {
+                throw LanguageException("IndexError", "Array index out of bounds: " + std::to_string(idx) + " (size: " + std::to_string(vec.size()) + ")");
+            }
+            return vec[idx];
         }
     }
 
@@ -158,6 +172,7 @@ Value BytecodeVM::indexGet(const std::string& varName, const Value& indexValue) 
             auto& dict = it->second;
             auto kIt = dict.find(key);
             if (kIt != dict.end()) return kIt->second;
+            throw LanguageException("KeyError", "Dictionary key not found: '" + key + "'");
         }
     }
 
@@ -605,7 +620,9 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
     size_t ip = 0;
 
     auto pop = [&]() -> Value {
-        if (stack.empty()) return Value{};
+        if (stack.empty()) {
+            throw LanguageException("RuntimeError", "VM stack underflow");
+        }
         Value v = stack.back();
         stack.pop_back();
         return v;
@@ -744,11 +761,10 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
             case bc::OpCode::LOAD_SLOT: {
                 uint16_t slot = readU16(code, ip, &ok);
                 if (!ok) throw std::runtime_error("Bytecode decode error");
-                if (slot < locals.size()) {
-                    push(locals[slot]);
-                } else {
-                    push(Value{});
+                if (slot >= locals.size()) {
+                    throw LanguageException("RuntimeError", "Local slot index out of bounds: " + std::to_string(slot));
                 }
+                push(locals[slot]);
                 break;
             }
 
@@ -764,7 +780,10 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
                 uint16_t slot = readU16(code, ip, &ok);
                 if (!ok) throw std::runtime_error("Bytecode decode error");
                 Value v = pop();
-                if (slot < locals.size()) locals[slot] = v;
+                if (slot >= locals.size()) {
+                    throw LanguageException("RuntimeError", "Local slot index out of bounds: " + std::to_string(slot));
+                }
+                locals[slot] = v;
                 // Keep runtime.variables in sync for features that still consult it
                 if (slot < fn.localNameStrings.size()) {
                     runtime.setVariable(str(fn.localNameStrings[slot]), v);
@@ -909,7 +928,11 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
             case bc::OpCode::JUMP: {
                 int32_t rel = readI32(code, ip, &ok);
                 if (!ok) throw std::runtime_error("Bytecode decode error");
-                ip = (size_t)((int64_t)ip + rel);
+                int64_t newIp = (int64_t)ip + rel;
+                if (newIp < 0 || (size_t)newIp > code.size()) {
+                    throw LanguageException("RuntimeError", "Invalid jump target: out of bounds");
+                }
+                ip = (size_t)newIp;
                 break;
             }
 
@@ -917,7 +940,13 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
                 int32_t rel = readI32(code, ip, &ok);
                 if (!ok) throw std::runtime_error("Bytecode decode error");
                 Value cond = pop();
-                if (!evalCondition(cond)) ip = (size_t)((int64_t)ip + rel);
+                if (!evalCondition(cond)) {
+                    int64_t newIp = (int64_t)ip + rel;
+                    if (newIp < 0 || (size_t)newIp > code.size()) {
+                        throw LanguageException("RuntimeError", "Invalid jump target: out of bounds");
+                    }
+                    ip = (size_t)newIp;
+                }
                 break;
             }
 
@@ -925,7 +954,13 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
                 int32_t rel = readI32(code, ip, &ok);
                 if (!ok) throw std::runtime_error("Bytecode decode error");
                 Value cond = pop();
-                if (evalCondition(cond)) ip = (size_t)((int64_t)ip + rel);
+                if (evalCondition(cond)) {
+                    int64_t newIp = (int64_t)ip + rel;
+                    if (newIp < 0 || (size_t)newIp > code.size()) {
+                        throw LanguageException("RuntimeError", "Invalid jump target: out of bounds");
+                    }
+                    ip = (size_t)newIp;
+                }
                 break;
             }
 
@@ -964,6 +999,14 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
                 std::string catchVar = str(readU32(code, ip, &ok));
                 std::string catchType = str(readU32(code, ip, &ok));
                 if (!ok) throw std::runtime_error("Bytecode decode error");
+
+                // Validate exception handler addresses
+                if (catchIpAbs > code.size()) {
+                    throw LanguageException("RuntimeError", "Invalid catch handler address: out of bounds");
+                }
+                if (hasFinally && finallyIpAbs > code.size()) {
+                    throw LanguageException("RuntimeError", "Invalid finally handler address: out of bounds");
+                }
 
                 TryFrame tf;
                 tf.catchIp = (size_t)catchIpAbs;

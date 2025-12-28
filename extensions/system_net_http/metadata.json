@@ -1,0 +1,6 @@
+{
+    "name": "system.net.http",
+    "author": "Project Team",
+    "version": "1.0.0",
+    "description": "HTTP client library providing RFC-compliant HttpRequest, HttpResponse, and related types"
+}

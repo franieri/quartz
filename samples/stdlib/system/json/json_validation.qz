@@ -1,0 +1,49 @@
+// Test system.json validation functions
+// Expected output:
+//   Valid JSON check:
+//   true
+//   Invalid string check:
+//   false
+//   Type of number:
+//   number
+//   Type of string:
+//   string
+//   Type of array:
+//   array
+//   Type of object:
+//   object
+//   Type of null:
+//   null
+//   Type of boolean:
+//   boolean
+
+import system.io as io;
+import system.json as json;
+
+// Test isValid
+let validJson = json.stringify({"test": true});
+io.println("Valid JSON check:");
+io.println(json.isValid(validJson));
+
+let invalidStr = "not json at all";
+io.println("Invalid string check:");
+io.println(json.isValid(invalidStr));
+
+// Test type detection
+io.println("Type of number:");
+io.println(json.type("123"));
+
+io.println("Type of string:");
+io.println(json.type("\"hello\""));
+
+io.println("Type of array:");
+io.println(json.type("[1,2,3]"));
+
+io.println("Type of object:");
+io.println(json.type("{}"));
+
+io.println("Type of null:");
+io.println(json.type("null"));
+
+io.println("Type of boolean:");
+io.println(json.type("true"));

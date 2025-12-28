@@ -1,0 +1,27 @@
+// Test system.json parse function
+// Expected output:
+//   Parsed object from string:
+//   {"value": 42, "name": "Test"}
+//   Name field:
+//   Test
+//   Value field:
+//   42
+
+import system.io as io;
+import system.json as json;
+
+// Create and stringify an object
+let obj = {"name": "Test", "value": 42};
+let jsonStr = json.stringify(obj);
+
+// Parse it back
+let parsed = json.parse(jsonStr);
+io.println("Parsed object from string:");
+io.println(parsed);
+
+// Access fields
+io.println("Name field:");
+io.println(parsed["name"]);
+
+io.println("Value field:");
+io.println(parsed["value"]);

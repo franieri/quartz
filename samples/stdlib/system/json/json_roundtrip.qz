@@ -1,0 +1,28 @@
+// Test system.json round-trip conversion
+// Expected output:
+//   Original object:
+//   {"x":10,"y":20,"label":"point"}
+//   After stringify and parse:
+//   {"label": "point", "y": 20, "x": 10}
+//   Values match:
+//   true
+
+import system.io as io;
+import system.json as json;
+
+// Create an object
+let original = {"x": 10, "y": 20, "label": "point"};
+
+io.println("Original object:");
+io.println(json.stringify(original));
+
+// Convert to string and back
+let jsonStr = json.stringify(original);
+let parsed = json.parse(jsonStr);
+
+io.println("After stringify and parse:");
+io.println(parsed);
+
+// Verify values
+io.println("Values match:");
+io.println(parsed["x"] == 10 && parsed["y"] == 20);

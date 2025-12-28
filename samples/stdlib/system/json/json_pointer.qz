@@ -1,0 +1,43 @@
+// Test system.json pointer get and set functions
+// Expected output:
+//   Original object:
+//   {
+//     "user": {
+//       "age": 30,
+//       "name": "Bob"
+//     }
+//   }
+//   User name via pointer:
+//   Bob
+//   User age via pointer:
+//   30
+//   After updating age to 31:
+//   {
+//     "user": {
+//       "age": 31,
+//       "name": "Bob"
+//     }
+//   }
+
+import system.io as io;
+import system.json as json;
+
+// Create a nested object
+let obj = {"user": {"name": "Bob", "age": 30}};
+
+io.println("Original object:");
+io.println(json.stringify(obj, 2));
+
+// Get nested values using JSON pointer
+let userName = json.get(obj, "/user/name");
+io.println("User name via pointer:");
+io.println(userName);
+
+let userAge = json.get(obj, "/user/age");
+io.println("User age via pointer:");
+io.println(userAge);
+
+// Set a nested value
+let updated = json.set(obj, "/user/age", 31);
+io.println("After updating age to 31:");
+io.println(json.stringify(updated, 2));

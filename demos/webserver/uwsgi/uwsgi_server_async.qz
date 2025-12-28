@@ -1,0 +1,127 @@
+// ============================================================================
+// uWSGI Async Server Example - Event Loop Integration
+// ============================================================================
+// This example demonstrates how to use the uWSGI server with the async
+// event loop for non-blocking, high-performance request handling.
+//
+// This is the recommended pattern for production use.
+// ============================================================================
+
+import system.net.uwsgi.*
+import system.async.eventloop as ev
+import system.io.*
+
+// Global server reference
+let g_server = nil
+let g_running = true
+
+// Async request handler
+fn handleRequestAsync(req, connId) {
+    let path = req["path"]
+    let method = req["method"]
+    
+    // Simulate async processing with a timer
+    // In real applications, this could be database queries, file I/O, etc.
+    
+    if path == "/" && method == "GET" {
+        // Immediate response
+        respond(g_server, connId, response.html(
+            "<html><body><h1>Async Server</h1><p>Powered by event loop!</p></body></html>"
+        ))
+        return
+    }
+    
+    if path == "/api/slow" && method == "GET" {
+        // Simulate slow operation (100ms delay)
+        ev.setTimeout(100, fn(e) {
+            respond(g_server, connId, response.json(
+                '{"message": "This took 100ms", "async": true}'
+            ))
+        })
+        return
+    }
+    
+    if path == "/api/stats" && method == "GET" {
+        // Return server statistics
+        let s = stats(g_server)
+        let statsJson = '{"connections": ' + str(s["activeConnections"]) + 
+                        ', "requests": ' + str(s["totalRequests"]) +
+                        ', "uptime_ms": ' + str(s["uptimeMs"]) + '}'
+        respond(g_server, connId, response.json(statsJson))
+        return
+    }
+    
+    if path == "/api/shutdown" && method == "POST" {
+        // Graceful shutdown
+        respond(g_server, connId, response.json('{"message": "Shutting down..."}'))
+        ev.setTimeout(100, fn(e) {
+            g_running = false
+            ev.stop()
+        })
+        return
+    }
+    
+    // 404 for everything else
+    respond(g_server, connId, response.error(404, "Not Found: " + path))
+}
+
+fn main() {
+    println("Starting Quartz Async uWSGI Server...")
+    
+    // Create server
+    g_server = create({
+        "host": "127.0.0.1",
+        "port": 3031,
+        "backlog": 4096,
+        "maxConnections": 10000,
+        "keepAlive": true,
+        "tcpNoDelay": true
+    })
+    
+    // Set async request handler
+    onRequestAsync(g_server, handleRequestAsync)
+    
+    // Start server
+    if !start(g_server) {
+        println("Failed to start server!")
+        return
+    }
+    
+    println("Server started on 127.0.0.1:3031")
+    println("Endpoints:")
+    println("  GET  /           - Home page")
+    println("  GET  /api/slow   - Simulated slow endpoint (100ms)")
+    println("  GET  /api/stats  - Server statistics")
+    println("  POST /api/shutdown - Graceful shutdown")
+    println("")
+    println("Press Ctrl+C to stop")
+    
+    // Initialize event loop
+    ev.init()
+    
+    // Poll uWSGI server on interval (every 1ms for responsiveness)
+    ev.setInterval(1, fn(e) {
+        if g_running {
+            poll(g_server, 0)  // Non-blocking poll
+        }
+    })
+    
+    // Print stats every 10 seconds
+    ev.setInterval(10000, fn(e) {
+        if g_running {
+            let s = stats(g_server)
+            println("Stats: " + str(s["totalRequests"]) + " requests, " +
+                    str(s["activeConnections"]) + " active connections")
+        }
+    })
+    
+    // Run event loop
+    ev.run()
+    
+    // Cleanup
+    stop(g_server)
+    destroy(g_server)
+    println("Server stopped")
+}
+
+main()

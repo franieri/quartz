@@ -1,0 +1,93 @@
+// ============================================================================
+// uWSGI Server Example - Simple HTTP Server for nginx
+// ============================================================================
+// This example demonstrates how to create a high-performance uWSGI server
+// that can be used with nginx as a reverse proxy frontend.
+//
+// To use with nginx, add this to your nginx.conf:
+// 
+//   upstream quartz {
+//       server 127.0.0.1:3031;
+//   }
+//   
+//   server {
+//       listen 80;
+//       location / {
+//           uwsgi_pass quartz;
+//           include uwsgi_params;
+//       }
+//   }
+// ============================================================================
+
+import system.net.uwsgi.*
+import system.io.*
+
+// Simple route handler
+fn handleRequest(req) {
+    let path = req["path"]
+    let method = req["method"]
+    
+    // Route: GET /
+    if path == "/" && method == "GET" {
+        return response.html("<html><body><h1>Welcome to Quartz!</h1><p>High-performance uWSGI server.</p></body></html>")
+    }
+    
+    // Route: GET /api/status
+    if path == "/api/status" && method == "GET" {
+        return response.json('{"status": "ok", "server": "quartz-uwsgi"}')
+    }
+    
+    // Route: GET /api/echo with query params
+    if path == "/api/echo" && method == "GET" {
+        let params = req["params"]
+        let message = "No message"
+        if params != nil && params["msg"] != nil {
+            message = params["msg"]
+        }
+        return response.json('{"echo": "' + message + '"}')
+    }
+    
+    // Route: POST /api/data
+    if path == "/api/data" && method == "POST" {
+        let body = req["body"]
+        return response.json('{"received": "' + body + '", "length": ' + str(len(body)) + '}')
+    }
+    
+    // 404 for everything else
+    return response.error(404, "Not Found: " + path)
+}
+
+// Main
+fn main() {
+    println("Starting Quartz uWSGI Server...")
+    
+    // Create server with configuration
+    let server = create({
+        "host": "127.0.0.1",
+        "port": 3031,
+        "backlog": 1024,
+        "maxConnections": 1000,
+        "keepAlive": true,
+        "tcpNoDelay": true
+    })
+    
+    // Set request handler
+    onRequest(server, handleRequest)
+    
+    // Start server
+    if start(server) {
+        println("Server started on 127.0.0.1:3031")
+        println("Press Ctrl+C to stop")
+        
+        // Run server (blocking)
+        run(server)
+    } else {
+        println("Failed to start server!")
+    }
+    
+    // Cleanup
+    destroy(server)
+    println("Server stopped")
+}
+
+main()

@@ -1,3 +1,9 @@
 {
-    "extensions": ["system_io", "system_collection", "system_runtime"]
+    "extensions": [
+        "system_io",
+        "system_collection",
+        "system_runtime",
+        "system_net_socket",
+        "system_async_eventloop"
+    ]
 }

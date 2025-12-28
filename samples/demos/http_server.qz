@@ -1,0 +1,130 @@
+// Quartz HTTP Server Demo
+// A simple HTTP server using system.net.socket
+
+import system.io as io;
+import system.net.socket as socket;
+import system.string as str;
+import system.json as json;
+import system.convert as conv;
+import system.collection as c;
+
+// Get CRLF for HTTP parsing
+let CRLF = str.CRLF();
+
+// Parse HTTP request
+let parseRequest = (raw) => {
+    let lines = str.split(raw, CRLF);
+    if (c.len(lines) == 0) {
+        return {"error": "Empty"};
+    }
+    let requestLine = str.split(lines[0], " ");
+    if (c.len(requestLine) < 3) {
+        return {"error": "Invalid"};
+    }
+    let method = requestLine[0];
+    let path = requestLine[1];
+    return {"error": "", "method": method, "path": path};
+};
+
+// Build HTTP response
+let buildResponse = (code, contentType, body) => {
+    let status = "OK";
+    if (code == 404) {
+        status = "Not Found";
+    }
+    let codeStr = conv.toString(code);
+    let lenStr = conv.toString(str.length(body));
+    let resp = "HTTP/1.1 " + codeStr + " " + status + CRLF;
+    resp = resp + "Content-Type: " + contentType + CRLF;
+    resp = resp + "Content-Length: " + lenStr + CRLF;
+    resp = resp + "Server: Quartz/1.0" + CRLF;
+    resp = resp + "Connection: close" + CRLF;
+    resp = resp + CRLF;
+    resp = resp + body;
+    return resp;
+};
+
+// Handle routes
+let handleRoute = (method, path) => {
+    if (method == "GET" && path == "/") {
+        let html = "<html><body><h1>Quartz HTTP Server</h1></body></html>";
+        return buildResponse(200, "text/html", html);
+    }
+    if (method == "GET" && path == "/api/health") {
+        let data = {"status": "UP"};
+        return buildResponse(200, "application/json", json.stringify(data));
+    }
+    if (method == "GET" && path == "/api/benchmark") {
+        let sum = 0;
+        let i = 0;
+        while (i < 10000) {
+            sum = sum + i * i;
+            i = i + 1;
+        }
+        let data = {"result": sum};
+        return buildResponse(200, "application/json", json.stringify(data));
+    }
+    let data = {"error": "Not Found"};
+    return buildResponse(404, "application/json", json.stringify(data));
+};
+
+// Run server
+let runServer = (host, port) => {
+    let portStr = conv.toString(port);
+    io.out.println("Starting server on " + host + ":" + portStr);
+    
+    let serverSock = socket.tcp();
+    if (serverSock == "") {
+        io.out.println("Failed to create socket");
+        return;
+    }
+    
+    let bound = socket.bind(serverSock, host, port);
+    if (bound == false) {
+        io.out.println("Failed to bind");
+        socket.close(serverSock);
+        return;
+    }
+    
+    let listening = socket.listen(serverSock, 128);
+    if (listening == false) {
+        io.out.println("Failed to listen");
+        socket.close(serverSock);
+        return;
+    }
+
+    // Keep the demo simple: block in accept() instead of busy-looping.
+    socket.setNonBlocking(serverSock, false);
+    
+    io.out.println("Listening on http://" + host + ":" + portStr);
+    io.out.println("Press Ctrl+C to stop");
+    
+    let count = 0;
+    while (1 == 1) {
+        io.out.println("Waiting for connection...");
+        let conn = socket.accept(serverSock);
+        let connLen = c.len(conn);
+        if (connLen == 0) {
+            continue;
+        }
+        let client = conn["socket"];
+        count = count + 1;
+        let data = socket.recv(client, 4096);
+        if (str.length(data) > 0) {
+            let req = parseRequest(data);
+            // Use length check since "" comparison doesn't work on dict values
+            if (str.length(req["error"]) == 0) {
+                let m = req["method"];
+                let p = req["path"];
+                let countStr = conv.toString(count);
+                io.out.println("[" + countStr + "] " + m + " " + p);
+                let response = handleRoute(m, p);
+                socket.send(client, response);
+            }
+        }
+        socket.close(client);
+    }
+};
+
+io.out.println("=== Quartz HTTP Server ===");
+runServer("0.0.0.0", 8080);

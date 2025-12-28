@@ -311,6 +311,8 @@ private:
     std::unordered_map<std::string, std::string> imports;  // alias -> full namespace
     bool shouldBreak = false;     // For break statement
     bool shouldContinue = false;  // For continue statement
+    bool shouldReturn = false;    // For return statement inside nested blocks
+    Value pendingReturnValue;     // Value to return when shouldReturn is set
     size_t nextArrayId = 0;  // Counter for unique array IDs
     size_t nextDictId = 0;   // Counter for unique dict IDs
     size_t nextLambdaId = 0; // Counter for unique lambda IDs

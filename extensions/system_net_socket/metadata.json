@@ -1,0 +1,6 @@
+{
+    "name": "system.net.socket",
+    "author": "Quartz Team",
+    "version": "1.0.0",
+    "description": "High-performance TCP/UDP socket library with non-blocking I/O support for building servers and clients"
+}

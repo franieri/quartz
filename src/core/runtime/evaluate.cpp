@@ -332,8 +332,27 @@ Value Runtime::evaluate(const ASTNodePtr& node) {
         try {
             std::string name = std::get<std::string>(node->value);
             std::vector<Value> args;
+            size_t argIndex = 0;
             for (const auto &arg : node->children) {
-                args.push_back(evaluate(arg));
+                try {
+                    args.push_back(evaluate(arg));
+                } catch (const LanguageException& e) {
+                    throw;  // Re-throw language exceptions as-is
+                } catch (const std::exception& e) {
+                    std::string msg = "Error evaluating argument " + std::to_string(argIndex + 1) + 
+                                      " in call to '" + name + "': " + std::string(e.what());
+                    if (arg->line >= 0) {
+                        msg += " [argument at line " + std::to_string(arg->line) + 
+                               ", col " + std::to_string(arg->column) + "]";
+                    }
+                    if (node->line >= 0) {
+                        msg += " [function call at line " + std::to_string(node->line) + 
+                               ", col " + std::to_string(node->column) + "]";
+                    }
+                    notifyError("call", msg, node->line, node->column, false);
+                    return Value{};
+                }
+                argIndex++;
             }
             
             // Check if name is a lambda variable
@@ -446,9 +465,6 @@ Value Runtime::evaluate(const ASTNodePtr& node) {
                     }
                 }
                 std::string msg = std::string("Unknown function: ") + name;
-                if (node->line >= 0) {
-                    msg += " [line " + std::to_string(node->line) + ", col " + std::to_string(node->column) + "]";
-                }
                 notifyError("call", msg, node->line, node->column, false);
                 return Value{};
             } else {
@@ -458,15 +474,39 @@ Value Runtime::evaluate(const ASTNodePtr& node) {
                     return FunctionRegistry::instance().call(resolved, args);
                 } else {
                     std::string msg = std::string("Unknown function: ") + resolved;
-                    if (node->line >= 0) {
-                        msg += " [line " + std::to_string(node->line) + ", col " + std::to_string(node->column) + "]";
-                    }
                     notifyError("call", msg, node->line, node->column, false);
                     return Value{};
                 }
             }
-        } catch(...) {
-            notifyError("call", "Error evaluating function call", node->line, node->column, false);
+        } catch (const LanguageException& e) {
+            // Re-throw language exceptions to be caught by higher level handlers
+            throw;
+        } catch (const std::exception& e) {
+            std::string funcName = std::get<std::string>(node->value);
+            std::string resolved = resolveFunctionName(funcName);
+            std::string msg = "Error in function call '" + funcName + "'";
+            if (funcName != resolved) {
+                msg += " (resolved to '" + resolved + "')";
+            }
+            msg += ": " + std::string(e.what());
+            // Add information about current module context if available
+            if (!currentLoadingModule.empty()) {
+                msg += " [in module " + currentLoadingModule + "]";
+            }
+            notifyError("call", msg, node->line, node->column, false);
+            return Value{};
+        } catch (...) {
+            std::string funcName = std::get<std::string>(node->value);
+            std::string resolved = resolveFunctionName(funcName);
+            std::string msg = "Unknown error in function call '" + funcName + "'";
+            if (funcName != resolved) {
+                msg += " (resolved to '" + resolved + "')";
+            }
+            msg += " - an unhandled exception occurred during execution";
+            if (!currentLoadingModule.empty()) {
+                msg += " [in module " + currentLoadingModule + "]";
+            }
+            notifyError("call", msg, node->line, node->column, false);
             return Value{};
         }
     }
@@ -496,6 +536,51 @@ Value Runtime::evaluate(const ASTNodePtr& node) {
 }
 
 Value Runtime::applyBinaryOp(const Value& left, const Value& right, const std::string& op) {
+    // Helper to check truthiness
+    auto isTruthy = [](const Value& v) -> bool {
+        return std::visit([](auto&& arg) -> bool {
+            using T = std::decay_t<decltype(arg)>;
+            if constexpr (std::is_same_v<T, bool>) return arg;
+            else if constexpr (std::is_arithmetic_v<T>) return arg != 0;
+            else if constexpr (std::is_same_v<T, std::string>) return !arg.empty();
+            else return false;
+        }, v);
+    };
+    
+    // Handle logical operators first (work on any truthy/falsy values)
+    if (op == "&&") {
+        bool leftTrue = isTruthy(left);
+        bool rightTrue = isTruthy(right);
+        return Value(leftTrue && rightTrue ? 1 : 0);
+    }
+    if (op == "||") {
+        bool leftTrue = isTruthy(left);
+        bool rightTrue = isTruthy(right);
+        return Value(leftTrue || rightTrue ? 1 : 0);
+    }
+    
+    // Handle string concatenation
+    if (op == "+") {
+        bool leftIsString = std::holds_alternative<std::string>(left);
+        bool rightIsString = std::holds_alternative<std::string>(right);
+        if (leftIsString || rightIsString) {
+            // Convert both to strings and concatenate
+            std::string leftStr = formatValue(left);
+            std::string rightStr = formatValue(right);
+            return Value(leftStr + rightStr);
+        }
+    }
+    
+    // Handle string equality comparison
+    if (op == "==" || op == "!=") {
+        if (std::holds_alternative<std::string>(left) && std::holds_alternative<std::string>(right)) {
+            const std::string& l = std::get<std::string>(left);
+            const std::string& r = std::get<std::string>(right);
+            if (op == "==") return Value(l == r ? 1 : 0);
+            if (op == "!=") return Value(l != r ? 1 : 0);
+        }
+    }
+    
     return std::visit([&](auto&& l, auto&& r) -> Value {
         using L = std::decay_t<decltype(l)>;
         using R = std::decay_t<decltype(r)>;
@@ -534,6 +619,12 @@ Value Runtime::applyBinaryOp(const Value& left, const Value& right, const std::s
 Value Runtime::executeMethodBody(const ASTNodePtr& body) {
     Value returnValue;
     
+    // Save and clear return flag - nested calls shouldn't affect our return state
+    bool savedShouldReturn = shouldReturn;
+    Value savedPendingReturn = pendingReturnValue;
+    shouldReturn = false;
+    pendingReturnValue = Value{};
+    
     if (body->type == NodeType::Block) {
         for (const auto& stmt : body->children) {
             if (stmt->type == NodeType::Return) {
@@ -541,22 +632,41 @@ Value Runtime::executeMethodBody(const ASTNodePtr& body) {
                 if (!stmt->children.empty()) {
                     returnValue = evaluate(stmt->children[0]);
                 }
+                // Restore saved state before returning
+                shouldReturn = savedShouldReturn;
+                pendingReturnValue = savedPendingReturn;
                 return returnValue;
             } else {
                 // Execute other statements
                 executeNode(stmt);
+                
+                // Check if a return was triggered inside nested blocks (if, while, etc.)
+                if (shouldReturn) {
+                    returnValue = pendingReturnValue;
+                    // Clear our return flag but keep the value
+                    shouldReturn = savedShouldReturn;
+                    pendingReturnValue = savedPendingReturn;
+                    return returnValue;
+                }
             }
         }
     } else if (body->type == NodeType::Return) {
         if (!body->children.empty()) {
             returnValue = evaluate(body->children[0]);
         }
+        shouldReturn = savedShouldReturn;
+        pendingReturnValue = savedPendingReturn;
         return returnValue;
     } else {
         // Single expression body
+        shouldReturn = savedShouldReturn;
+        pendingReturnValue = savedPendingReturn;
         return evaluate(body);
     }
     
+    // Restore state before returning
+    shouldReturn = savedShouldReturn;
+    pendingReturnValue = savedPendingReturn;
     return returnValue;
 }
 

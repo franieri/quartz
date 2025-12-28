@@ -1,0 +1,217 @@
+// ============================================================================
+// system.net.http Library Demo
+// Demonstrates HTTP request/response types and utilities
+// ============================================================================
+
+import system.io as io;
+import system.net.http as http;
+
+io.out.println("=== system.net.http Library Demo ===");
+io.out.println("");
+
+// ----------------------------------------------------------------------------
+// 1. HTTP Methods
+// ----------------------------------------------------------------------------
+io.out.println("--- HTTP Methods ---");
+io.out.println("GET:", http.method.GET());
+io.out.println("POST:", http.method.POST());
+io.out.println("PUT:", http.method.PUT());
+io.out.println("DELETE:", http.method.DELETE());
+io.out.println("PATCH:", http.method.PATCH());
+io.out.println("");
+
+// ----------------------------------------------------------------------------
+// 2. Status Codes
+// ----------------------------------------------------------------------------
+io.out.println("--- Status Codes ---");
+
+let codes = [200, 201, 301, 400, 401, 404, 500, 503];
+let i = 0;
+while (i < 8) {
+    let code = codes[i];
+    let text = http.status.text(code);
+    io.out.println("Status \{code}: \{text}");
+    i += 1;
+}
+io.out.println("");
+
+// Status code checks
+io.out.println("200 is successful:", http.status.isSuccessful(200));
+io.out.println("301 is redirection:", http.status.isRedirection(301));
+io.out.println("404 is client error:", http.status.isClientError(404));
+io.out.println("500 is server error:", http.status.isServerError(500));
+io.out.println("404 is error:", http.status.isError(404));
+io.out.println("");
+
+// ----------------------------------------------------------------------------
+// 3. URL Parsing
+// ----------------------------------------------------------------------------
+io.out.println("--- URL Parsing ---");
+
+let url = http.url.parse("https://user:pass@api.example.com:8080/v1/users?page=1&limit=10#results");
+io.out.println("Scheme:", url["scheme"]);
+io.out.println("Host:", url["host"]);
+io.out.println("Port:", url["port"]);
+io.out.println("Path:", url["path"]);
+io.out.println("Query:", url["query"]);
+io.out.println("Fragment:", url["fragment"]);
+io.out.println("Username:", url["username"]);
+io.out.println("Full URL:", url["href"]);
+io.out.println("");
+
+// ----------------------------------------------------------------------------
+// 4. URL Encoding/Decoding
+// ----------------------------------------------------------------------------
+io.out.println("--- URL Encoding ---");
+
+let original = "hello world & special=chars?";
+let encoded = http.url.encode(original);
+let decoded = http.url.decode(encoded);
+
+io.out.println("Original:", original);
+io.out.println("Encoded:", encoded);
+io.out.println("Decoded:", decoded);
+io.out.println("");
+
+// ----------------------------------------------------------------------------
+// 5. Building URLs
+// ----------------------------------------------------------------------------
+io.out.println("--- URL Building ---");
+
+let urlComponents = {
+    "scheme": "https",
+    "host": "api.example.com",
+    "port": 443,
+    "path": "/api/v2/search",
+    "query": "q=test"
+};
+let builtUrl = http.url.build(urlComponents);
+io.out.println("Built URL:", builtUrl);
+io.out.println("");
+
+// ----------------------------------------------------------------------------
+// 6. HTTP Requests
+// ----------------------------------------------------------------------------
+io.out.println("--- HTTP Requests ---");
+
+let getRequest = http.request.get("https://api.example.com/users");
+io.out.println("GET Request method:", getRequest["method"]);
+io.out.println("GET Request URL:", getRequest["url"]);
+
+let postRequest = http.request.post("https://api.example.com/users", "{\"name\": \"John\"}");
+io.out.println("POST Request method:", postRequest["method"]);
+io.out.println("POST Request body:", postRequest["body"]);
+io.out.println("");
+
+// ----------------------------------------------------------------------------
+// 7. Request Serialization
+// ----------------------------------------------------------------------------
+io.out.println("--- Request Serialization ---");
+
+let req = http.request.create("POST", "https://api.example.com/login");
+// Note: In full implementation, you'd set headers on the request dict
+let serialized = http.request.serialize(req);
+io.out.println("Serialized request:");
+io.out.println(serialized);
+io.out.println("");
+
+// ----------------------------------------------------------------------------
+// 8. HTTP Responses
+// ----------------------------------------------------------------------------
+io.out.println("--- HTTP Responses ---");
+
+let response = http.response.create(200, "{\"success\": true}");
+io.out.println("Response status:", response["statusCode"]);
+io.out.println("Response text:", response["statusText"]);
+io.out.println("Response body:", response["body"]);
+io.out.println("Is OK:", response["ok"]);
+io.out.println("Is Successful:", response["isSuccessful"]);
+io.out.println("Is Error:", response["isError"]);
+io.out.println("");
+
+let errorResponse = http.response.create(404, "Not Found");
+io.out.println("Error response status:", errorResponse["statusCode"]);
+io.out.println("Is Error:", errorResponse["isError"]);
+io.out.println("Is Client Error:", errorResponse["isClientError"]);
+io.out.println("");
+
+// ----------------------------------------------------------------------------
+// 9. MIME Types
+// ----------------------------------------------------------------------------
+io.out.println("--- MIME Types ---");
+io.out.println("JSON:", http.mime.JSON());
+io.out.println("HTML:", http.mime.HTML());
+io.out.println("Form:", http.mime.FORM());
+io.out.println("Text:", http.mime.TEXT());
+io.out.println("PNG:", http.mime.PNG());
+io.out.println("");
+
+// ----------------------------------------------------------------------------
+// 10. Header Names
+// ----------------------------------------------------------------------------
+io.out.println("--- Header Constants ---");
+io.out.println("Content-Type header:", http.header.CONTENT_TYPE());
+io.out.println("Authorization header:", http.header.AUTHORIZATION());
+io.out.println("Accept header:", http.header.ACCEPT());
+io.out.println("User-Agent header:", http.header.USER_AGENT());
+io.out.println("");
+
+// ----------------------------------------------------------------------------
+// 11. Headers Management
+// ----------------------------------------------------------------------------
+io.out.println("--- Headers Management ---");
+
+let headers = http.headers.create();
+http.headers.set(headers, "Content-Type", "application/json");
+http.headers.set(headers, "Accept", "*/*");
+http.headers.set(headers, "X-Custom-Header", "custom-value");
+
+io.out.println("Has Content-Type:", http.headers.has(headers, "Content-Type"));
+io.out.println("Has content-type (case-insensitive):", http.headers.has(headers, "content-type"));
+io.out.println("Content-Type value:", http.headers.get(headers, "Content-Type"));
+io.out.println("");
+
+// ----------------------------------------------------------------------------
+// 12. Cookie Parsing
+// ----------------------------------------------------------------------------
+io.out.println("--- Cookie Parsing ---");
+
+let cookie = http.cookie.parse("session=abc123xyz; Path=/; Domain=.example.com; HttpOnly; Secure; SameSite=Strict");
+io.out.println("Cookie name:", cookie["name"]);
+io.out.println("Cookie value:", cookie["value"]);
+io.out.println("Cookie path:", cookie["path"]);
+io.out.println("Cookie domain:", cookie["domain"]);
+io.out.println("HttpOnly:", cookie["httpOnly"]);
+io.out.println("Secure:", cookie["secure"]);
+io.out.println("SameSite:", cookie["sameSite"]);
+io.out.println("");
+
+// Create a new cookie
+let newCookie = http.cookie.create("user_pref", "dark_mode");
+io.out.println("New cookie:", http.cookie.toString(newCookie));
+io.out.println("");
+
+// ----------------------------------------------------------------------------
+// 13. Authentication
+// ----------------------------------------------------------------------------
+io.out.println("--- Authentication ---");
+
+let basicAuth = http.auth.basic("myuser", "mypassword");
+io.out.println("Basic Auth header:", basicAuth);
+
+let bearerAuth = http.auth.bearer("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...");
+io.out.println("Bearer Auth header:", bearerAuth);
+io.out.println("");
+
+// ----------------------------------------------------------------------------
+// Summary
+// ----------------------------------------------------------------------------
+io.out.println("=== Demo Complete ===");
+io.out.println("The system.net.http library provides:");
+io.out.println("  - RFC-compliant HTTP request/response types");
+io.out.println("  - URL parsing and building");
+io.out.println("  - Header management (case-insensitive)");
+io.out.println("  - Cookie parsing and serialization");
+io.out.println("  - Status code utilities");
+io.out.println("  - MIME type constants");
+io.out.println("  - Authentication helpers");

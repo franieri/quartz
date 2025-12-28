@@ -369,6 +369,8 @@ bool readProgramFromFile(const std::string& filePath, Program* outProgram, std::
             uint32_t len = 0;
             if (!readU32(payloadIn, &len)) return fail("Corrupt bytecode file (string length)");
             if (len > kQzbMaxSingleStringBytes) return fail("Bytecode too large (single string)");
+            // Check for overflow before adding
+            if (totalStringBytes > kQzbMaxTotalStringBytes - len) return fail("Bytecode too large (string bytes overflow)");
             totalStringBytes += len;
             if (totalStringBytes > kQzbMaxTotalStringBytes) return fail("Bytecode too large (string bytes)");
             std::string s;
@@ -387,6 +389,11 @@ bool readProgramFromFile(const std::string& filePath, Program* outProgram, std::
         p->functions.resize(fnCount);
 
         uint64_t totalCodeBytes = 0;
+        uint64_t totalParamSlots = 0;  // Track aggregate param/local slot allocations
+        uint64_t totalLocalSlots = 0;
+        static constexpr uint64_t kQzbMaxTotalParamSlots = 10000000ull;  // 10M total param slots
+        static constexpr uint64_t kQzbMaxTotalLocalSlots = 10000000ull;  // 10M total local slots
+
         for (uint32_t i = 0; i < fnCount; ++i) {
             Function fn;
             if (!readU32(payloadIn, &fn.nameString)) return fail("Corrupt bytecode file (function name)");
@@ -394,6 +401,9 @@ bool readProgramFromFile(const std::string& filePath, Program* outProgram, std::
             uint32_t paramCount = 0;
             if (!readU32(payloadIn, &paramCount)) return fail("Corrupt bytecode file (function params)");
             if (paramCount > kQzbMaxParamsPerFunction) return fail("Bytecode too large (param count)");
+            // Check for aggregate param slot overflow
+            if (totalParamSlots > kQzbMaxTotalParamSlots - paramCount) return fail("Bytecode too large (total param slots overflow)");
+            totalParamSlots += paramCount;
             fn.paramNameStrings.resize(paramCount);
             for (uint32_t j = 0; j < paramCount; ++j) {
                 if (!readU32(payloadIn, &fn.paramNameStrings[j])) return fail("Corrupt bytecode file (function params)");
@@ -403,6 +413,9 @@ bool readProgramFromFile(const std::string& filePath, Program* outProgram, std::
                 uint32_t localCount = 0;
                 if (!readU32(payloadIn, &localCount)) return fail("Corrupt bytecode file (function locals)");
                 if (localCount > kQzbMaxLocalsPerFunction) return fail("Bytecode too large (local count)");
+                // Check for aggregate local slot overflow
+                if (totalLocalSlots > kQzbMaxTotalLocalSlots - localCount) return fail("Bytecode too large (total local slots overflow)");
+                totalLocalSlots += localCount;
                 fn.localNameStrings.resize(localCount);
                 for (uint32_t j = 0; j < localCount; ++j) {
                     if (!readU32(payloadIn, &fn.localNameStrings[j])) return fail("Corrupt bytecode file (function locals)");
@@ -414,6 +427,8 @@ bool readProgramFromFile(const std::string& filePath, Program* outProgram, std::
             uint32_t codeSize = 0;
             if (!readU32(payloadIn, &codeSize)) return fail("Corrupt bytecode file (function code size)");
             if (codeSize > kQzbMaxCodeBytesPerFunction) return fail("Bytecode too large (function code)");
+            // Check for overflow before adding
+            if (totalCodeBytes > kQzbMaxTotalCodeBytes - codeSize) return fail("Bytecode too large (total code overflow)");
             totalCodeBytes += codeSize;
             if (totalCodeBytes > kQzbMaxTotalCodeBytes) return fail("Bytecode too large (total code)");
             fn.code.resize(codeSize);

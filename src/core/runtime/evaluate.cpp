@@ -503,7 +503,19 @@ Value Runtime::applyBinaryOp(const Value& left, const Value& right, const std::s
             if (op == "+") return l + r;
             if (op == "-") return l - r;
             if (op == "*") return l * r;
-            if (op == "/") return l / r;
+            if (op == "/") {
+                // Check for division by zero
+                if constexpr (std::is_integral_v<R>) {
+                    if (r == 0) {
+                        throw LanguageException("ArithmeticError", "Division by zero");
+                    }
+                } else if constexpr (std::is_floating_point_v<R>) {
+                    if (r == 0.0) {
+                        throw LanguageException("ArithmeticError", "Division by zero");
+                    }
+                }
+                return l / r;
+            }
             if (op == "==") return l == r;
             if (op == "!=") return l != r;
             if (op == "<") return l < r;

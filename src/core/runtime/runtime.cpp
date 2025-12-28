@@ -627,6 +627,16 @@ void Runtime::registerGlobalExceptionClass() {
     ClassDef nullError = exceptionClass;
     nullError.name = "NullError";
     classRegistry["NullError"] = nullError;
+
+    ClassDef arithmeticError = exceptionClass;
+    arithmeticError.name = "ArithmeticError";
+    arithmeticError.parentClass = "Exception";
+    classRegistry["ArithmeticError"] = arithmeticError;
+
+    ClassDef keyError = exceptionClass;
+    keyError.name = "KeyError";
+    keyError.parentClass = "Exception";
+    classRegistry["KeyError"] = keyError;
 }
 
 void Runtime::loadExtensions() {

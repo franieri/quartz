@@ -1,0 +1,6 @@
+{
+    "name": "system.json",
+    "author": "Project Team",
+    "version": "1.0.0",
+    "description": "System JSON extension providing JSON parsing and manipulation functions using nlohmann/json library"
+}

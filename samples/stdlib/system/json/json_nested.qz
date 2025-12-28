@@ -1,0 +1,41 @@
+// Test system.json with nested structures
+// Expected output:
+//   Nested structure:
+//   {
+//     "user": {
+//       "age": 25,
+//       "hobbies": [
+//         "reading",
+//         "coding",
+//         "gaming"
+//       ],
+//       "name": "Alice"
+//     }
+//   }
+//   First hobby:
+//   reading
+//   Hobby count:
+//   3
+
+import system.io as io;
+import system.json as json;
+
+// Create a complex nested structure
+let data = {
+    "user": {
+        "name": "Alice",
+        "age": 25,
+        "hobbies": ["reading", "coding", "gaming"]
+    }
+};
+
+io.println("Nested structure:");
+io.println(json.stringify(data, 2));
+
+// Access nested array
+let hobbies = json.get(data, "/user/hobbies");
+io.println("First hobby:");
+io.println(hobbies[0]);
+
+io.println("Hobby count:");
+io.println(system.collection.len(hobbies));

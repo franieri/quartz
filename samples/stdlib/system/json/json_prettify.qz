@@ -1,0 +1,32 @@
+// Test system.json prettify and minify functions
+// Expected output:
+//   Original compact:
+//   {"a":1,"b":2,"c":{"d":3}}
+//   Prettified:
+//   {
+//     "a": 1,
+//     "b": 2,
+//     "c": {
+//       "d": 3
+//     }
+//   }
+//   Minified back:
+//   {"a":1,"b":2,"c":{"d":3}}
+
+import system.io as io;
+import system.json as json;
+
+// Create a compact JSON string
+let obj = {"a": 1, "b": 2, "c": {"d": 3}};
+let compact = json.stringify(obj);
+
+io.println("Original compact:");
+io.println(compact);
+
+// Prettify it
+io.println("Prettified:");
+io.println(json.prettify(compact));
+
+// Minify again
+io.println("Minified back:");
+io.println(json.minify(compact));

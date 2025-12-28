@@ -1,0 +1,26 @@
+// Test system.json merge function
+// Expected output:
+//   Object 1:
+//   {"a":1,"b":2}
+//   Object 2:
+//   {"b":3,"c":4}
+//   Merged (obj2 overwrites obj1):
+//   {"a":1,"b":3,"c":4}
+
+import system.io as io;
+import system.json as json;
+
+// Create two objects
+let obj1 = {"a": 1, "b": 2};
+let obj2 = {"b": 3, "c": 4};
+
+io.println("Object 1:");
+io.println(json.stringify(obj1));
+
+io.println("Object 2:");
+io.println(json.stringify(obj2));
+
+// Merge them (obj2 overwrites obj1 for duplicate keys)
+let merged = json.merge(obj1, obj2);
+io.println("Merged (obj2 overwrites obj1):");
+io.println(json.stringify(merged));

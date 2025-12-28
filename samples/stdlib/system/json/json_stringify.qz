@@ -1,0 +1,28 @@
+// Test system.json stringify functions
+// Expected output:
+//   Compact JSON:
+//   {"name":"Alice","age":25}
+//   Pretty JSON:
+//   {
+//     "name": "Alice",
+//     "age": 25
+//   }
+//   Array stringify:
+//   [1,2,3,4,5]
+
+import system.io as io;
+import system.json as json;
+
+// Test stringify compact
+let obj = {"name": "Alice", "age": 25};
+io.println("Compact JSON:");
+io.println(json.stringify(obj));
+
+// Test stringify with pretty print
+io.println("Pretty JSON:");
+io.println(json.stringify(obj, 2));
+
+// Test array stringify
+let arr = [1, 2, 3, 4, 5];
+io.println("Array stringify:");
+io.println(json.stringify(arr));

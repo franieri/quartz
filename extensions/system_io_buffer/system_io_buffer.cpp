@@ -10,6 +10,7 @@
 #include <vector>
 #include <sstream>
 #include <iomanip>
+#include <cstring>
 
 static inline Runtime* rt() {
     return global_runtime_ptr;

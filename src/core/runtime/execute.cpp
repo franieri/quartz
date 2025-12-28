@@ -181,6 +181,10 @@ void Runtime::executeNode(const ASTNodePtr& node) {
                 shouldContinue = false;
                 continue;
             }
+            if (shouldReturn) {
+                // Don't clear shouldReturn - let it propagate
+                break;
+            }
         }
         break;
     }
@@ -222,6 +226,17 @@ void Runtime::executeNode(const ASTNodePtr& node) {
     case NodeType::Continue:
         shouldContinue = true;
         break;
+
+    case NodeType::Return: {
+        // Return statement - set flag and store value
+        shouldReturn = true;
+        if (!node->children.empty()) {
+            pendingReturnValue = evaluate(node->children[0]);
+        } else {
+            pendingReturnValue = Value{};
+        }
+        break;
+    }
 
     case NodeType::Try: {
         // Try-catch-finally statement
@@ -547,7 +562,7 @@ void Runtime::executeNode(const ASTNodePtr& node) {
 
     case NodeType::Block:
         for (const auto& child : node->children) {
-            if (shouldBreak || shouldContinue) break;
+            if (shouldBreak || shouldContinue || shouldReturn) break;
             executeNode(child);
         }
         break;

@@ -1,9 +1,31 @@
 #include "function_registry.h"
+#include "runtime.h"
 #include "types.h"
 #include <algorithm>
 #include <cctype>
 
+static inline Runtime* rt() {
+    return global_runtime_ptr;
+}
+
 void register_string_functions(FunctionRegistry& reg) {
+    // system.string.concat(str1, str2, ...) -> string - concatenates all arguments
+    reg.registerFunction("system.string.concat", [](const std::vector<Value>& args) -> Value {
+        std::string result;
+        for (const auto& arg : args) {
+            if (std::holds_alternative<std::string>(arg)) {
+                result += std::get<std::string>(arg);
+            } else if (std::holds_alternative<int>(arg)) {
+                result += std::to_string(std::get<int>(arg));
+            } else if (std::holds_alternative<double>(arg)) {
+                result += std::to_string(std::get<double>(arg));
+            } else if (std::holds_alternative<bool>(arg)) {
+                result += std::get<bool>(arg) ? "true" : "false";
+            }
+        }
+        return Value(result);
+    });
+    
     auto length_func = [](const std::vector<Value>& args) -> Value {
         if (args.empty()) return Value(0);
         if (std::holds_alternative<std::string>(args[0])) {
@@ -126,4 +148,76 @@ void register_string_functions(FunctionRegistry& reg) {
         return Value("");
     };
     reg.registerFunction("system.string.replace", replace_func);
+    
+    // system.string.split(str, delimiter) -> array of strings
+    auto split_func = [](const std::vector<Value>& args) -> Value {
+        if (!rt()) return Value("");
+        if (args.size() < 2) return rt()->makeArray({});
+        if (!std::holds_alternative<std::string>(args[0]) || 
+            !std::holds_alternative<std::string>(args[1])) {
+            return rt()->makeArray({});
+        }
+        std::string str = std::get<std::string>(args[0]);
+        std::string delim = std::get<std::string>(args[1]);
+        std::vector<Value> result;
+        
+        if (delim.empty()) {
+            // Split into individual characters
+            for (char c : str) {
+                result.push_back(Value(std::string(1, c)));
+            }
+        } else {
+            size_t pos = 0;
+            size_t prev = 0;
+            while ((pos = str.find(delim, prev)) != std::string::npos) {
+                result.push_back(Value(str.substr(prev, pos - prev)));
+                prev = pos + delim.length();
+            }
+            result.push_back(Value(str.substr(prev)));
+        }
+        return rt()->makeArray(std::move(result));
+    };
+    reg.registerFunction("system.string.split", split_func);
+    
+    // system.string.indexOf(str, substr) -> int (-1 if not found)
+    auto indexOf_func = [](const std::vector<Value>& args) -> Value {
+        if (args.size() < 2) return Value(-1);
+        if (!std::holds_alternative<std::string>(args[0]) || 
+            !std::holds_alternative<std::string>(args[1])) {
+            return Value(-1);
+        }
+        std::string str = std::get<std::string>(args[0]);
+        std::string substr = std::get<std::string>(args[1]);
+        size_t pos = str.find(substr);
+        if (pos == std::string::npos) {
+            return Value(-1);
+        }
+        return Value(static_cast<int>(pos));
+    };
+    reg.registerFunction("system.string.indexOf", indexOf_func);
+    
+    // system.string.chr(code) -> string - returns character for ASCII code
+    reg.registerFunction("system.string.chr", [](const std::vector<Value>& args) -> Value {
+        if (args.empty() || !std::holds_alternative<int>(args[0])) {
+            return Value("");
+        }
+        int code = std::get<int>(args[0]);
+        if (code < 0 || code > 255) return Value("");
+        return Value(std::string(1, static_cast<char>(code)));
+    });
+    
+    // system.string.CRLF - constant for \r\n
+    reg.registerFunction("system.string.CRLF", [](const std::vector<Value>& args) -> Value {
+        return Value(std::string("\r\n"));
+    });
+    
+    // system.string.LF - constant for \n
+    reg.registerFunction("system.string.LF", [](const std::vector<Value>& args) -> Value {
+        return Value(std::string("\n"));
+    });
+    
+    // system.string.CR - constant for \r
+    reg.registerFunction("system.string.CR", [](const std::vector<Value>& args) -> Value {
+        return Value(std::string("\r"));
+    });
 }

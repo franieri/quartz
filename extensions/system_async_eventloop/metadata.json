@@ -1,0 +1,6 @@
+{
+    "name": "system.async.eventloop",
+    "author": "Quartz Team",
+    "version": "1.0.0",
+    "description": "High-performance event loop with non-blocking I/O support using epoll (Linux), kqueue (macOS), and IOCP (Windows)"
+}

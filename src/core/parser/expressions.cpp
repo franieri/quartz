@@ -277,7 +277,8 @@ ASTNodePtr Parser::primary() {
         return parseDictLiteral();
     }
     if (match(TokenType::IDENTIFIER)) {
-        std::string name = previous().lexeme;
+        Token identToken = previous();  // Save the identifier token for line/column info
+        std::string name = identToken.lexeme;
         while (match(TokenType::DOT)) {
             Token id = consume(TokenType::IDENTIFIER, "Expect identifier after '.'.");
             name += "." + id.lexeme;
@@ -292,6 +293,8 @@ ASTNodePtr Parser::primary() {
         // function call if followed by '('
         if (match(TokenType::LEFT_PAREN)) {
             ASTNodePtr call = std::make_shared<ASTNode>(NodeType::Call, name);
+            call->line = identToken.line;      // Set line/column from the identifier
+            call->column = identToken.column;
             // parse arguments
             if (!match(TokenType::RIGHT_PAREN)) {
                 do {
@@ -307,7 +310,10 @@ ASTNodePtr Parser::primary() {
             Logger::instance().log(LogLevel::ERROR, peek(), "Unexpected token after identifier; did you mean a function call?");
             throw std::runtime_error("Unexpected token after identifier");
         }
-        return std::make_shared<ASTNode>(NodeType::Identifier, name);
+        ASTNodePtr identNode = std::make_shared<ASTNode>(NodeType::Identifier, name);
+        identNode->line = identToken.line;
+        identNode->column = identToken.column;
+        return identNode;
     }
     if (match(TokenType::LEFT_PAREN)) {
         // Could be a lambda: (x, y) => ... or (x: int) => ...

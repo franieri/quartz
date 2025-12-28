@@ -1,0 +1,6 @@
+{
+    "name": "system.net.uwsgi",
+    "author": "Quartz Team",
+    "version": "1.0.0",
+    "description": "High-performance uWSGI protocol server for nginx integration with async event loop support"
+}

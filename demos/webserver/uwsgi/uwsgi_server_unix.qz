@@ -1,0 +1,94 @@
+// ============================================================================
+// uWSGI Unix Socket Server - For nginx Integration
+// ============================================================================
+// This example demonstrates how to create a uWSGI server using Unix sockets,
+// which provides better performance for local nginx communication.
+//
+// nginx configuration:
+//
+//   upstream quartz {
+//       server unix:/tmp/quartz.sock;
+//   }
+//   
+//   server {
+//       listen 80;
+//       location / {
+//           uwsgi_pass quartz;
+//           include uwsgi_params;
+//       }
+//   }
+// ============================================================================
+
+import system.net.uwsgi.*
+import system.async.eventloop as ev
+import system.io.*
+
+let g_server = nil
+let g_running = true
+
+// Simple JSON API handler
+fn handleApi(req, connId) {
+    let path = req["path"]
+    let method = req["method"]
+    
+    // Health check
+    if path == "/health" {
+        respond(g_server, connId, response.json('{"status": "healthy"}'))
+        return
+    }
+    
+    // API routes
+    if path == "/api/v1/users" && method == "GET" {
+        respond(g_server, connId, response.json(
+            '{"users": [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}]}'
+        ))
+        return
+    }
+    
+    if path == "/api/v1/users" && method == "POST" {
+        let body = req["body"]
+        respond(g_server, connId, response.json(
+            '{"created": true, "data": ' + body + '}'
+        ))
+        return
+    }
+    
+    // Default 404
+    respond(g_server, connId, response.error(404))
+}
+
+fn main() {
+    println("Starting Quartz uWSGI Server (Unix Socket)...")
+    
+    // Create server with Unix socket
+    g_server = create({
+        "socket": "/tmp/quartz.sock",
+        "backlog": 4096,
+        "maxConnections": 10000,
+        "keepAlive": true
+    })
+    
+    onRequestAsync(g_server, handleApi)
+    
+    if !start(g_server) {
+        println("Failed to start server!")
+        return
+    }
+    
+    println("Server listening on unix:/tmp/quartz.sock")
+    println("Configure nginx to proxy to this socket")
+    
+    // Event loop
+    ev.init()
+    ev.setInterval(1, fn(e) {
+        if g_running {
+            poll(g_server, 0)
+        }
+    })
+    ev.run()
+    
+    stop(g_server)
+    destroy(g_server)
+}
+
+main()

@@ -1,0 +1,27 @@
+# Docker ignore file for Bedrock builds
+# Keep this minimal to ensure all necessary files are included
+
+# Git
+.git
+.gitignore
+
+# Build outputs (we rebuild in container)
+build/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Documentation
+*.md
+!README.md
+
+# Test files
+test_results/
+Testing/

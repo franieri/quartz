@@ -190,37 +190,39 @@ Runtime::~Runtime() {
 }
 
 std::vector<Value>* Runtime::getArray(const ArrayRef& ref) {
-    auto it = arrayStorage.find(ref.id);
-    if (it == arrayStorage.end()) return nullptr;
-    return &it->second;
+    if (ref.id >= arrayStorage.size()) return nullptr;
+    return &arrayStorage[ref.id];
 }
 
 const std::vector<Value>* Runtime::getArray(const ArrayRef& ref) const {
-    auto it = arrayStorage.find(ref.id);
-    if (it == arrayStorage.end()) return nullptr;
-    return &it->second;
+    if (ref.id >= arrayStorage.size()) return nullptr;
+    return &arrayStorage[ref.id];
 }
 
 std::unordered_map<std::string, Value>* Runtime::getDict(const DictRef& ref) {
-    auto it = dictStorage.find(ref.id);
-    if (it == dictStorage.end()) return nullptr;
-    return &it->second;
+    if (ref.id >= dictStorage.size()) return nullptr;
+    return &dictStorage[ref.id];
 }
 
 const std::unordered_map<std::string, Value>* Runtime::getDict(const DictRef& ref) const {
-    auto it = dictStorage.find(ref.id);
-    if (it == dictStorage.end()) return nullptr;
-    return &it->second;
+    if (ref.id >= dictStorage.size()) return nullptr;
+    return &dictStorage[ref.id];
 }
 
 Value Runtime::makeArray(std::vector<Value> elements) {
-    std::string arrayId = "__array_" + std::to_string(nextArrayId++);
+    size_t arrayId = nextArrayId++;
+    if (arrayId >= arrayStorage.size()) {
+        arrayStorage.resize(arrayId + 1);
+    }
     arrayStorage[arrayId] = std::move(elements);
     return Value(ArrayRef{arrayId});
 }
 
 Value Runtime::makeDict(std::unordered_map<std::string, Value> entries) {
-    std::string dictId = "__dict_" + std::to_string(nextDictId++);
+    size_t dictId = nextDictId++;
+    if (dictId >= dictStorage.size()) {
+        dictStorage.resize(dictId + 1);
+    }
     dictStorage[dictId] = std::move(entries);
     return Value(DictRef{dictId});
 }
@@ -488,10 +490,9 @@ static inline void appendFormatted(std::string& out, const Runtime* rt, const Va
     }, val);
 }
 
-std::string Runtime::formatArrayById(const std::string& arrayId, bool quoteStrings) const {
-    auto it = arrayStorage.find(arrayId);
-    if (it == arrayStorage.end()) return "[]";
-    const auto& vec = it->second;
+std::string Runtime::formatArrayById(size_t arrayId, bool quoteStrings) const {
+    if (arrayId >= arrayStorage.size()) return "[]";
+    const auto& vec = arrayStorage[arrayId];
     std::string out;
     out.reserve(2 + vec.size() * 8);
     out += "[";
@@ -503,10 +504,9 @@ std::string Runtime::formatArrayById(const std::string& arrayId, bool quoteStrin
     return out;
 }
 
-std::string Runtime::formatDictById(const std::string& dictId, bool quoteStrings) const {
-    auto it = dictStorage.find(dictId);
-    if (it == dictStorage.end()) return "{}";
-    const auto& dict = it->second;
+std::string Runtime::formatDictById(size_t dictId, bool quoteStrings) const {
+    if (dictId >= dictStorage.size()) return "{}";
+    const auto& dict = dictStorage[dictId];
     std::string out;
     out.reserve(2 + dict.size() * 16);
     out += "{";

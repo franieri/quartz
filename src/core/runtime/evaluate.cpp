@@ -101,8 +101,11 @@ Value Runtime::evaluate(const ASTNodePtr& node) {
             arrayVec.push_back(evaluate(child));
         }
 
-        // Store the actual array and return the handle
-        std::string arrayId = "__array_" + std::to_string(nextArrayId++);
+        // Store the actual array and return the handle (integer ID)
+        size_t arrayId = nextArrayId++;
+        if (arrayId >= arrayStorage.size()) {
+            arrayStorage.resize(arrayId + 1);
+        }
         arrayStorage[arrayId] = std::move(arrayVec);
         return Value(ArrayRef{arrayId});
     }
@@ -120,8 +123,11 @@ Value Runtime::evaluate(const ASTNodePtr& node) {
             }
         }
 
-        // Store the actual dict and return the handle
-        std::string dictId = "__dict_" + std::to_string(nextDictId++);
+        // Store the actual dict and return the handle (integer ID)
+        size_t dictId = nextDictId++;
+        if (dictId >= dictStorage.size()) {
+            dictStorage.resize(dictId + 1);
+        }
         dictStorage[dictId] = std::move(dictMap);
         return Value(DictRef{dictId});
     }
@@ -135,22 +141,20 @@ Value Runtime::evaluate(const ASTNodePtr& node) {
         Value indexValue = evaluate(indexNode);
 
         if (std::holds_alternative<ArrayRef>(containerVal) && std::holds_alternative<int>(indexValue)) {
-            const auto& id = std::get<ArrayRef>(containerVal).id;
+            size_t id = std::get<ArrayRef>(containerVal).id;
             int idx = std::get<int>(indexValue);
-            auto it = arrayStorage.find(id);
-            if (it != arrayStorage.end()) {
-                auto& vec = it->second;
+            if (id < arrayStorage.size()) {
+                auto& vec = arrayStorage[id];
                 if (idx >= 0 && idx < (int)vec.size()) return vec[(size_t)idx];
             }
             return Value{};
         }
 
         if (std::holds_alternative<DictRef>(containerVal) && std::holds_alternative<std::string>(indexValue)) {
-            const auto& id = std::get<DictRef>(containerVal).id;
+            size_t id = std::get<DictRef>(containerVal).id;
             const std::string& key = std::get<std::string>(indexValue);
-            auto it = dictStorage.find(id);
-            if (it != dictStorage.end()) {
-                auto& dict = it->second;
+            if (id < dictStorage.size()) {
+                auto& dict = dictStorage[id];
                 auto kIt = dict.find(key);
                 if (kIt != dict.end()) return kIt->second;
             }
@@ -163,18 +167,18 @@ Value Runtime::evaluate(const ASTNodePtr& node) {
             auto aIt = varToArrayId.find(varName);
             if (aIt != varToArrayId.end() && std::holds_alternative<int>(indexValue)) {
                 int idx = std::get<int>(indexValue);
-                auto it = arrayStorage.find(aIt->second);
-                if (it != arrayStorage.end()) {
-                    auto& vec = it->second;
+                size_t id = aIt->second;
+                if (id < arrayStorage.size()) {
+                    auto& vec = arrayStorage[id];
                     if (idx >= 0 && idx < (int)vec.size()) return vec[(size_t)idx];
                 }
             }
             auto dIt = varToDictId.find(varName);
             if (dIt != varToDictId.end() && std::holds_alternative<std::string>(indexValue)) {
                 const std::string& key = std::get<std::string>(indexValue);
-                auto it = dictStorage.find(dIt->second);
-                if (it != dictStorage.end()) {
-                    auto& dict = it->second;
+                size_t id = dIt->second;
+                if (id < dictStorage.size()) {
+                    auto& dict = dictStorage[id];
                     auto kIt = dict.find(key);
                     if (kIt != dict.end()) return kIt->second;
                 }

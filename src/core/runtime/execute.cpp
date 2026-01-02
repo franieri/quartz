@@ -86,7 +86,10 @@ void Runtime::executeNode(const ASTNodePtr& node) {
             for (const auto& elem : elements) {
                 arrayVec.push_back(evaluate(elem));
             }
-            std::string arrayId = "__array_" + std::to_string(nextArrayId++);
+            size_t arrayId = nextArrayId++;
+            if (arrayId >= arrayStorage.size()) {
+                arrayStorage.resize(arrayId + 1);
+            }
             varToArrayId[varName] = arrayId;
             arrayStorage[arrayId] = std::move(arrayVec);
             setVariable(varName, Value(ArrayRef{arrayId}));
@@ -100,7 +103,10 @@ void Runtime::executeNode(const ASTNodePtr& node) {
                     dictMap[pair->name] = evaluate(pair->children[0]);
                 }
             }
-            std::string dictId = "__dict_" + std::to_string(nextDictId++);
+            size_t dictId = nextDictId++;
+            if (dictId >= dictStorage.size()) {
+                dictStorage.resize(dictId + 1);
+            }
             varToDictId[varName] = dictId;
             dictStorage[dictId] = std::move(dictMap);
             setVariable(varName, Value(DictRef{dictId}));

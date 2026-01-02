@@ -288,8 +288,8 @@ public:
 
     // Formatting (used by to_string(Value) and I/O)
     std::string formatValue(const Value& v, bool quoteStrings = false) const;
-    std::string formatArrayById(const std::string& arrayId, bool quoteStrings = false) const;
-    std::string formatDictById(const std::string& dictId, bool quoteStrings = false) const;
+    std::string formatArrayById(size_t arrayId, bool quoteStrings = false) const;
+    std::string formatDictById(size_t dictId, bool quoteStrings = false) const;
 
     // Lambda invocation helper for extensions
     Value invokeLambdaValue(const Value& lambdaVal, const std::vector<Value>& args);
@@ -300,12 +300,12 @@ public:
 private:
     std::unordered_map<std::string, Value> variables;
     std::unordered_map<std::string, ObjectInstancePtr> objects;  // Store object instances
-    std::unordered_map<std::string, std::vector<Value>> arrayStorage;  // Store actual arrays
-    std::unordered_map<std::string, std::unordered_map<std::string, Value>> dictStorage;  // Store actual dicts
+    std::vector<std::vector<Value>> arrayStorage;  // Store actual arrays by integer ID
+    std::vector<std::unordered_map<std::string, Value>> dictStorage;  // Store actual dicts by integer ID
     std::unordered_map<std::string, std::vector<uint8_t>> bufferStorage;  // Store byte buffers
     mutable std::mutex bufferStorageMtx;  // Protects bufferStorage map and nextBufferId
-    std::unordered_map<std::string, std::string> varToArrayId;  // Map variable name to array ID
-    std::unordered_map<std::string, std::string> varToDictId;   // Map variable name to dict ID
+    std::unordered_map<std::string, size_t> varToArrayId;  // Map variable name to array ID
+    std::unordered_map<std::string, size_t> varToDictId;   // Map variable name to dict ID
     RuntimeState state;
     std::string executionMode = "interp"; // "interp" or "bytecode" (best-effort)
     std::unordered_map<std::string, std::string> imports;  // alias -> full namespace

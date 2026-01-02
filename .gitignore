@@ -52,3 +52,4 @@ test_results/
 # User-specific
 local.conf
 private/
+vgcore.*

@@ -10,13 +10,13 @@
 #include <stdexcept>
 
 // Opaque handles for runtime-managed containers.
-// Arrays/Dicts live in Runtime storage; these values reference them by ID.
+// Arrays/Dicts live in Runtime storage; these values reference them by integer ID.
 struct ArrayRef {
-    std::string id;
+    size_t id;
 };
 
 struct DictRef {
-    std::string id;
+    size_t id;
 };
 
 // TaskRef: handle to an async task (background work).

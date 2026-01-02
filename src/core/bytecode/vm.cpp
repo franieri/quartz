@@ -278,9 +278,9 @@ Value BytecodeVM::indexGet(const std::string& varName, const Value& indexValue) 
     auto aIt = runtime.varToArrayId.find(varName);
     if (aIt != runtime.varToArrayId.end() && std::holds_alternative<int>(indexValue)) {
         int idx = std::get<int>(indexValue);
-        auto it = runtime.arrayStorage.find(aIt->second);
-        if (it != runtime.arrayStorage.end()) {
-            auto& vec = it->second;
+        size_t id = aIt->second;
+        if (id < runtime.arrayStorage.size()) {
+            auto& vec = runtime.arrayStorage[id];
             if (idx < 0 || idx >= (int)vec.size()) {
                 throw LanguageException("IndexError", "Array index out of bounds: " + std::to_string(idx) + " (size: " + std::to_string(vec.size()) + ")");
             }
@@ -291,9 +291,9 @@ Value BytecodeVM::indexGet(const std::string& varName, const Value& indexValue) 
     auto dIt = runtime.varToDictId.find(varName);
     if (dIt != runtime.varToDictId.end() && std::holds_alternative<std::string>(indexValue)) {
         const std::string& key = std::get<std::string>(indexValue);
-        auto it = runtime.dictStorage.find(dIt->second);
-        if (it != runtime.dictStorage.end()) {
-            auto& dict = it->second;
+        size_t id = dIt->second;
+        if (id < runtime.dictStorage.size()) {
+            auto& dict = runtime.dictStorage[id];
             auto kIt = dict.find(key);
             if (kIt != dict.end()) return kIt->second;
             throw LanguageException("KeyError", "Dictionary key not found: '" + key + "'");
@@ -930,7 +930,10 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
                 arrayVec.resize(count);
                 for (int i = (int)count - 1; i >= 0; --i) arrayVec[(size_t)i] = pop();
 
-                std::string arrayId = "__array_" + std::to_string(runtime.nextArrayId++);
+                size_t arrayId = runtime.nextArrayId++;
+                if (arrayId >= runtime.arrayStorage.size()) {
+                    runtime.arrayStorage.resize(arrayId + 1);
+                }
                 runtime.varToArrayId[varName] = arrayId;
                 runtime.arrayStorage[arrayId] = arrayVec;
 
@@ -955,7 +958,10 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
                 for (int i = (int)count - 1; i >= 0; --i) values[(size_t)i] = pop();
                 for (size_t i = 0; i < count; ++i) dictMap[keys[i]] = values[i];
 
-                std::string dictId = "__dict_" + std::to_string(runtime.nextDictId++);
+                size_t dictId = runtime.nextDictId++;
+                if (dictId >= runtime.dictStorage.size()) {
+                    runtime.dictStorage.resize(dictId + 1);
+                }
                 runtime.varToDictId[varName] = dictId;
                 runtime.dictStorage[dictId] = dictMap;
 
@@ -971,7 +977,10 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
                 arrayVec.resize(count);
                 for (int i = (int)count - 1; i >= 0; --i) arrayVec[(size_t)i] = pop();
 
-                std::string arrayId = "__array_" + std::to_string(runtime.nextArrayId++);
+                size_t arrayId = runtime.nextArrayId++;
+                if (arrayId >= runtime.arrayStorage.size()) {
+                    runtime.arrayStorage.resize(arrayId + 1);
+                }
                 runtime.arrayStorage[arrayId] = std::move(arrayVec);
                 push(Value(ArrayRef{arrayId}));
                 break;
@@ -994,7 +1003,10 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
                     dictMap[keys[i]] = values[i];
                 }
 
-                std::string dictId = "__dict_" + std::to_string(runtime.nextDictId++);
+                size_t dictId = runtime.nextDictId++;
+                if (dictId >= runtime.dictStorage.size()) {
+                    runtime.dictStorage.resize(dictId + 1);
+                }
                 runtime.dictStorage[dictId] = std::move(dictMap);
                 push(Value(DictRef{dictId}));
                 break;

@@ -1,0 +1,11 @@
+import system.io as io;
+// @benchmark: name="Tight Loop 500k" iterations=500000 category="compute"
+// Simple tight loop - baseline for loop overhead measurement
+
+let sum = 0;
+let i = 0;
+while (i < 500000) {
+    sum = sum + i;
+    i = i + 1;
+}
+io.out.println(sum);

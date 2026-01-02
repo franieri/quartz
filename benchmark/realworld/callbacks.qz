@@ -1,0 +1,27 @@
+import system.io as io;
+// @benchmark: name="Counter with Callbacks" iterations=50000 category="realworld"
+// Simulates event-driven programming with callbacks
+
+let increment = (x) => x + 1;
+let decrement = (x) => x - 1;
+let double_val = (x) => x * 2;
+let halve = (x) => x / 2;
+
+fn apply_callback(value, callback_id) {
+    if (callback_id == 0) { return increment(value); }
+    if (callback_id == 1) { return decrement(value); }
+    if (callback_id == 2) { return double_val(value); }
+    if (callback_id == 3) { return halve(value); }
+    return value;
+}
+
+let value = 1000;
+let i = 0;
+while (i < 50000) {
+    let cb = i - (i / 4) * 4;  // 0-3
+    value = apply_callback(value, cb);
+    if (value < 1) { value = 1000; }
+    if (value > 1000000) { value = 1000; }
+    i = i + 1;
+}
+io.out.println(value);

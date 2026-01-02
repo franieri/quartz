@@ -1,0 +1,28 @@
+import system.io as io;
+// @benchmark: name="Prime Sieve Simple" iterations=10000 category="compute"
+// Simple prime checking - mixed arithmetic and conditionals
+
+fn is_prime(n) {
+    if (n < 2) { return false; }
+    if (n == 2) { return true; }
+    if (n / 2 * 2 == n) { return false; }  // Even check
+    
+    let i = 3;
+    while (i * i <= n) {
+        if (n / i * i == n) {
+            return false;
+        }
+        i = i + 2;
+    }
+    return true;
+}
+
+let count = 0;
+let n = 2;
+while (n < 10000) {
+    if (is_prime(n)) {
+        count = count + 1;
+    }
+    n = n + 1;
+}
+io.out.println(count);

@@ -1,0 +1,14 @@
+import system.io as io;
+// @benchmark: name="Dictionary Access" iterations=200000 category="memory"
+// Tests dictionary element access performance
+
+let dict = {"a": 1, "b": 2, "c": 3, "d": 4, "e": 5};
+let sum = 0;
+let i = 0;
+while (i < 200000) {
+    sum = sum + dict["a"];
+    sum = sum + dict["c"];
+    sum = sum + dict["e"];
+    i = i + 1;
+}
+io.out.println(sum);

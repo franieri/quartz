@@ -1,0 +1,15 @@
+import system.io as io;
+// @benchmark: name="Nested Loops 500x500" iterations=250000 category="compute"
+// Nested loop performance test
+
+let total = 0;
+let i = 0;
+while (i < 500) {
+    let j = 0;
+    while (j < 500) {
+        total = total + 1;
+        j = j + 1;
+    }
+    i = i + 1;
+}
+io.out.println(total);

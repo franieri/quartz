@@ -1,0 +1,15 @@
+import system.io as io;
+// @benchmark: name="Integer Subtraction" iterations=200000 category="micro"
+// Tests the applyBinaryIntInt fast-path for SUB operations
+
+let val = 1000000;
+let i = 0;
+while (i < 200000) {
+    val = val - 1;
+    val = val - 2;
+    val = val - i;
+    val = val + i;  // Keep value reasonable
+    val = val + 3;
+    i = i + 1;
+}
+io.out.println(val);

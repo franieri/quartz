@@ -1,0 +1,13 @@
+import system.io as io;
+// @benchmark: name="Lambda Creation" iterations=10000 category="memory"
+// Tests lambda/closure creation and capture
+
+let sum = 0;
+let i = 0;
+while (i < 10000) {
+    let x = i;
+    let add_x = (n) => n + x;
+    sum = sum + add_x(1);
+    i = i + 1;
+}
+io.out.println(sum);

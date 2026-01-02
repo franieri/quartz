@@ -5,6 +5,24 @@
 
 #include <cstring>
 
+// ============================================================================
+// VM Configuration Constants - Tunable for performance
+// ============================================================================
+namespace vm_config {
+    // Default stack reservation capacity to avoid frequent reallocations
+    constexpr size_t kDefaultStackReserve = 256;
+    
+    // Reserve capacity for call arguments vector
+    constexpr size_t kDefaultArgsReserve = 16;
+    
+    // Reserve capacity for locals vector (adjusted per function)
+    constexpr size_t kDefaultLocalsReserve = 64;
+    
+    // Try stack reserve for exception handling frames
+    constexpr size_t kDefaultTryStackReserve = 8;
+}
+// ============================================================================
+
 static inline void appendValueRepr(std::string& out, const Value& val) {
     std::visit([&out](auto&& arg) {
         using T = std::decay_t<decltype(arg)>;
@@ -45,33 +63,58 @@ static inline void appendValueToStringVM(std::string& out, const Value& val, boo
 
 static inline bool isStringValue(const Value& v) { return std::holds_alternative<std::string>(v); }
 
+// Branch prediction hints for hot paths
+#if defined(__GNUC__) || defined(__clang__)
+#define VM_LIKELY(x)   __builtin_expect(!!(x), 1)
+#define VM_UNLIKELY(x) __builtin_expect(!!(x), 0)
+#else
+#define VM_LIKELY(x)   (x)
+#define VM_UNLIKELY(x) (x)
+#endif
+
+// Optimized byte reading - inline for hot path performance
 uint8_t BytecodeVM::readU8(const std::vector<uint8_t>& code, size_t& ip, bool* ok) {
-    if (ip + 1 > code.size()) { *ok = false; return 0; }
+    if (VM_UNLIKELY(ip >= code.size())) { *ok = false; return 0; }
     return code[ip++];
 }
 
 uint16_t BytecodeVM::readU16(const std::vector<uint8_t>& code, size_t& ip, bool* ok) {
-    if (ip + 2 > code.size()) { *ok = false; return 0; }
-    uint16_t v = (uint16_t)code[ip] | ((uint16_t)code[ip + 1] << 8);
+    if (VM_UNLIKELY(ip + 2 > code.size())) { *ok = false; return 0; }
+    // Direct memory access for better optimization
+    const uint8_t* ptr = code.data() + ip;
+    uint16_t v = static_cast<uint16_t>(ptr[0]) | (static_cast<uint16_t>(ptr[1]) << 8);
     ip += 2;
     return v;
 }
 
 uint32_t BytecodeVM::readU32(const std::vector<uint8_t>& code, size_t& ip, bool* ok) {
-    if (ip + 4 > code.size()) { *ok = false; return 0; }
-    uint32_t v = (uint32_t)code[ip] | ((uint32_t)code[ip + 1] << 8) | ((uint32_t)code[ip + 2] << 16) | ((uint32_t)code[ip + 3] << 24);
+    if (VM_UNLIKELY(ip + 4 > code.size())) { *ok = false; return 0; }
+    // Direct memory access for better optimization
+    const uint8_t* ptr = code.data() + ip;
+    uint32_t v = static_cast<uint32_t>(ptr[0]) 
+               | (static_cast<uint32_t>(ptr[1]) << 8) 
+               | (static_cast<uint32_t>(ptr[2]) << 16) 
+               | (static_cast<uint32_t>(ptr[3]) << 24);
     ip += 4;
     return v;
 }
 
 int32_t BytecodeVM::readI32(const std::vector<uint8_t>& code, size_t& ip, bool* ok) {
-    return (int32_t)readU32(code, ip, ok);
+    return static_cast<int32_t>(readU32(code, ip, ok));
 }
 
 double BytecodeVM::readF64(const std::vector<uint8_t>& code, size_t& ip, bool* ok) {
-    if (ip + 8 > code.size()) { *ok = false; return 0.0; }
-    uint64_t bits = 0;
-    for (int i = 0; i < 8; ++i) bits |= (uint64_t)code[ip + i] << (i * 8);
+    if (VM_UNLIKELY(ip + 8 > code.size())) { *ok = false; return 0.0; }
+    // Use direct pointer access and unrolled byte reading
+    const uint8_t* ptr = code.data() + ip;
+    uint64_t bits = static_cast<uint64_t>(ptr[0])
+                  | (static_cast<uint64_t>(ptr[1]) << 8)
+                  | (static_cast<uint64_t>(ptr[2]) << 16)
+                  | (static_cast<uint64_t>(ptr[3]) << 24)
+                  | (static_cast<uint64_t>(ptr[4]) << 32)
+                  | (static_cast<uint64_t>(ptr[5]) << 40)
+                  | (static_cast<uint64_t>(ptr[6]) << 48)
+                  | (static_cast<uint64_t>(ptr[7]) << 56);
     ip += 8;
     double d;
     std::memcpy(&d, &bits, sizeof(d));
@@ -79,24 +122,104 @@ double BytecodeVM::readF64(const std::vector<uint8_t>& code, size_t& ip, bool* o
 }
 
 std::string BytecodeVM::str(uint32_t stringIndex) const {
-    if (!prog || stringIndex == bc::kInvalidIndex || stringIndex >= prog->strings.size()) return "";
+    if (VM_UNLIKELY(!prog || stringIndex == bc::kInvalidIndex || stringIndex >= prog->strings.size())) return "";
     return prog->strings[stringIndex];
 }
 
 bool BytecodeVM::evalCondition(const Value& v) const {
+    // Fast-path: direct type checks for common types to avoid std::visit overhead
+    if (const bool* b = std::get_if<bool>(&v)) {
+        return *b;
+    }
+    if (const int* i = std::get_if<int>(&v)) {
+        return *i != 0;
+    }
+    if (const double* d = std::get_if<double>(&v)) {
+        return *d != 0.0;
+    }
+    if (const std::string* s = std::get_if<std::string>(&v)) {
+        return !s->empty();
+    }
+    // Fallback for less common types (TaskRef, BufferRef, etc.)
     return std::visit([](auto&& arg) -> bool {
         using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, bool>) return arg;
-        else if constexpr (std::is_arithmetic_v<T>) return arg != 0;
-        else if constexpr (std::is_same_v<T, std::string>) return !arg.empty();
-        else if constexpr (std::is_same_v<T, TaskRef>) return true;  // Task handle is truthy
-        else if constexpr (std::is_same_v<T, BufferRef>) return true;  // Buffer handle is truthy
+        if constexpr (std::is_same_v<T, TaskRef>) return true;
+        else if constexpr (std::is_same_v<T, BufferRef>) return true;
+        else if constexpr (std::is_same_v<T, ArrayRef>) return true;
+        else if constexpr (std::is_same_v<T, DictRef>) return true;
         else return false;
     }, v);
 }
 
+// Fast-path helper for int-int binary operations (most common case)
+static inline Value applyBinaryIntInt(int l, int r, bc::BinaryOp op) {
+    switch (op) {
+    case bc::BinaryOp::ADD: return Value(l + r);
+    case bc::BinaryOp::SUB: return Value(l - r);
+    case bc::BinaryOp::MUL: return Value(l * r);
+    case bc::BinaryOp::DIV:
+        if (r == 0) throw LanguageException("ArithmeticError", "Division by zero");
+        return Value(l / r);
+    case bc::BinaryOp::EQ: return Value(l == r);
+    case bc::BinaryOp::NE: return Value(l != r);
+    case bc::BinaryOp::LT: return Value(l < r);
+    case bc::BinaryOp::GT: return Value(l > r);
+    case bc::BinaryOp::LE: return Value(l <= r);
+    case bc::BinaryOp::GE: return Value(l >= r);
+    }
+    return Value{};
+}
+
+// Fast-path helper for double-double binary operations
+static inline Value applyBinaryDoubleDouble(double l, double r, bc::BinaryOp op) {
+    switch (op) {
+    case bc::BinaryOp::ADD: return Value(l + r);
+    case bc::BinaryOp::SUB: return Value(l - r);
+    case bc::BinaryOp::MUL: return Value(l * r);
+    case bc::BinaryOp::DIV:
+        if (r == 0.0) throw LanguageException("ArithmeticError", "Division by zero");
+        return Value(l / r);
+    case bc::BinaryOp::EQ: return Value(l == r);
+    case bc::BinaryOp::NE: return Value(l != r);
+    case bc::BinaryOp::LT: return Value(l < r);
+    case bc::BinaryOp::GT: return Value(l > r);
+    case bc::BinaryOp::LE: return Value(l <= r);
+    case bc::BinaryOp::GE: return Value(l >= r);
+    }
+    return Value{};
+}
+
 Value BytecodeVM::applyBinary(const Value& left, const Value& right, bc::BinaryOp op) const {
-    // Mirror Runtime::applyBinaryOp for numerics.
+    // Fast-path: int-int operations (most common in loops, counters, etc.)
+    if (const int* li = std::get_if<int>(&left)) {
+        if (const int* ri = std::get_if<int>(&right)) {
+            return applyBinaryIntInt(*li, *ri, op);
+        }
+        // int-double promotion
+        if (const double* rd = std::get_if<double>(&right)) {
+            return applyBinaryDoubleDouble(static_cast<double>(*li), *rd, op);
+        }
+    }
+    
+    // Fast-path: double-double operations
+    if (const double* ld = std::get_if<double>(&left)) {
+        if (const double* rd = std::get_if<double>(&right)) {
+            return applyBinaryDoubleDouble(*ld, *rd, op);
+        }
+        // double-int promotion
+        if (const int* ri = std::get_if<int>(&right)) {
+            return applyBinaryDoubleDouble(*ld, static_cast<double>(*ri), op);
+        }
+    }
+    
+    // Fast-path: string concatenation
+    if (op == bc::BinaryOp::ADD) {
+        if (std::holds_alternative<std::string>(left) || std::holds_alternative<std::string>(right)) {
+            return Value(to_string(left) + to_string(right));
+        }
+    }
+    
+    // Fallback to generic visitor for remaining cases
     return std::visit([&](auto&& l, auto&& r) -> Value {
         using L = std::decay_t<decltype(l)>;
         using R = std::decay_t<decltype(r)>;
@@ -139,9 +262,10 @@ Value BytecodeVM::applyBinary(const Value& left, const Value& right, bc::BinaryO
 }
 
 Value BytecodeVM::applyUnary(const Value& operand, bc::UnaryOp op) const {
+    // Fast-path for common unary operations
     if (op == bc::UnaryOp::NEG) {
-        if (std::holds_alternative<int>(operand)) return Value(-std::get<int>(operand));
-        if (std::holds_alternative<double>(operand)) return Value(-std::get<double>(operand));
+        if (const int* i = std::get_if<int>(&operand)) return Value(-*i);
+        if (const double* d = std::get_if<double>(&operand)) return Value(-*d);
         return operand;
     }
     // NOT
@@ -594,16 +718,19 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
         runtime.variables[str(fn.paramNameStrings[i])] = args[i];
     }
 
-    // Slot locals (fast-path)
+    // Slot locals (fast-path) - pre-reserve to avoid reallocations
     std::vector<Value> locals;
-    locals.resize(fn.localNameStrings.size());
+    const size_t localsSize = fn.localNameStrings.size();
+    locals.reserve(std::max(localsSize, vm_config::kDefaultLocalsReserve));
+    locals.resize(localsSize);
     // Initialize param slots if present
     for (size_t i = 0; i < fn.paramNameStrings.size() && i < args.size(); ++i) {
         if (i < locals.size()) locals[i] = args[i];
     }
 
+    // Pre-reserve stack to avoid frequent reallocations in hot loops
     std::vector<Value> stack;
-    stack.reserve(128);
+    stack.reserve(vm_config::kDefaultStackReserve);
 
     struct TryFrame {
         size_t catchIp = 0;
@@ -613,17 +740,19 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
         std::string catchType;
     };
     std::vector<TryFrame> tryStack;
+    tryStack.reserve(vm_config::kDefaultTryStackReserve);
 
     bool pendingRethrow = false;
     LanguageException pendingExc("Exception", "");
 
     size_t ip = 0;
 
+    // Optimized pop: use move semantics to avoid copies
     auto pop = [&]() -> Value {
         if (stack.empty()) {
             throw LanguageException("RuntimeError", "VM stack underflow");
         }
-        Value v = stack.back();
+        Value v = std::move(stack.back());
         stack.pop_back();
         return v;
     };
@@ -970,11 +1099,12 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
                 if (!ok) throw std::runtime_error("Bytecode decode error");
 
                 std::vector<Value> callArgs;
+                callArgs.reserve(vm_config::kDefaultArgsReserve);
                 callArgs.resize(argc);
-                for (int i = (int)argc - 1; i >= 0; --i) callArgs[(size_t)i] = pop();
+                for (int i = (int)argc - 1; i >= 0; --i) callArgs[(size_t)i] = std::move(pop());
 
                 Value rv = callName(str(nidx), callArgs, error);
-                push(rv);
+                push(std::move(rv));
                 break;
             }
 
@@ -984,11 +1114,12 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
                 if (!ok) throw std::runtime_error("Bytecode decode error");
 
                 std::vector<Value> ctorArgs;
+                ctorArgs.reserve(vm_config::kDefaultArgsReserve);
                 ctorArgs.resize(argc);
-                for (int i = (int)argc - 1; i >= 0; --i) ctorArgs[(size_t)i] = pop();
+                for (int i = (int)argc - 1; i >= 0; --i) ctorArgs[(size_t)i] = std::move(pop());
 
                 Value obj = newObject(str(nidx), ctorArgs, error);
-                push(obj);
+                push(std::move(obj));
                 break;
             }
 

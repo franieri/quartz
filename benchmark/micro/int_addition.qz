@@ -1,0 +1,14 @@
+import system.io as io;
+// @benchmark: name="Integer Addition" iterations=200000 category="micro"
+// Tests the applyBinaryIntInt fast-path for ADD operations
+
+let sum = 0;
+let i = 0;
+while (i < 200000) {
+    sum = sum + i;
+    sum = sum + 1;
+    sum = sum + 2;
+    sum = sum + 3;
+    i = i + 1;
+}
+io.out.println(sum);

@@ -1,0 +1,16 @@
+import system.io as io;
+// @benchmark: name="Logical NOT" iterations=200000 category="micro"
+// Tests applyUnary NOT operation via evalCondition
+
+let flag = true;
+let count = 0;
+let i = 0;
+while (i < 200000) {
+    flag = !flag;
+    if (!flag) {
+        count = count + 1;
+    }
+    flag = !flag;
+    i = i + 1;
+}
+io.out.println(count);

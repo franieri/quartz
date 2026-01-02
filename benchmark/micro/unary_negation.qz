@@ -1,0 +1,15 @@
+import system.io as io;
+// @benchmark: name="Unary Negation" iterations=200000 category="micro"
+// Tests applyUnary fast-path for NEG operation
+
+let val = 100;
+let i = 0;
+while (i < 200000) {
+    val = -val;
+    val = -val;
+    val = val + 1;
+    val = -val;
+    val = -val;
+    i = i + 1;
+}
+io.out.println(val);

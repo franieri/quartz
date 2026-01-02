@@ -1,0 +1,16 @@
+import system.io as io;
+// @benchmark: name="Comparison Operations" iterations=200000 category="micro"
+// Tests comparison fast-paths (LT, GT, EQ, NE, LE, GE)
+
+let count = 0;
+let i = 0;
+while (i < 200000) {
+    if (i < 50000) { count = count + 1; }
+    if (i > 150000) { count = count + 1; }
+    if (i == 100000) { count = count + 100; }
+    if (i != 0) { count = count + 1; }
+    if (i <= 100000) { count = count + 1; }
+    if (i >= 100000) { count = count + 1; }
+    i = i + 1;
+}
+io.out.println(count);

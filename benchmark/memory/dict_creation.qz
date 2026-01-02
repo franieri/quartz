@@ -1,0 +1,12 @@
+import system.io as io;
+// @benchmark: name="Dictionary Creation" iterations=5000 category="memory"
+// Tests dictionary allocation
+
+let sum = 0;
+let i = 0;
+while (i < 5000) {
+    let dict = {"a": 1, "b": 2, "c": 3, "d": 4, "e": 5};
+    sum = sum + dict["a"] + dict["e"];
+    i = i + 1;
+}
+io.out.println(sum);

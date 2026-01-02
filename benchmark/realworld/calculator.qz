@@ -1,0 +1,25 @@
+import system.io as io;
+// @benchmark: name="Calculator Simulation" iterations=50000 category="realworld"
+// Simulates a simple calculator with mixed operations
+
+fn calculate(a, b, op) {
+    if (op == 0) { return a + b; }
+    if (op == 1) { return a - b; }
+    if (op == 2) { return a * b; }
+    if (op == 3) {
+        if (b != 0) { return a / b; }
+        return 0;
+    }
+    return 0;
+}
+
+let result = 0;
+let i = 0;
+while (i < 50000) {
+    result = calculate(i, i + 1, 0);  // add
+    result = calculate(result, 2, 2);  // multiply
+    result = calculate(result, 10, 3); // divide
+    result = calculate(result, i, 1);  // subtract
+    i = i + 1;
+}
+io.out.println(result);

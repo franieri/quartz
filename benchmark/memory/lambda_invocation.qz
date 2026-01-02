@@ -1,0 +1,15 @@
+import system.io as io;
+// @benchmark: name="Lambda Invocation" iterations=100000 category="memory"
+// Tests lambda call performance
+
+let double_it = (x) => x * 2;
+let add_one = (x) => x + 1;
+
+let sum = 0;
+let i = 0;
+while (i < 100000) {
+    sum = sum + double_it(i);
+    sum = sum + add_one(i);
+    i = i + 1;
+}
+io.out.println(sum);

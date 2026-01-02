@@ -1,0 +1,13 @@
+import system.io as io;
+// @benchmark: name="Fibonacci Recursive" iterations=30 category="compute"
+// Classic recursive fibonacci - tests deep recursion
+
+fn fib(n) {
+    if (n <= 1) {
+        return n;
+    }
+    return fib(n - 1) + fib(n - 2);
+}
+
+let result = fib(25);
+io.out.println(result);

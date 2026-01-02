@@ -1,0 +1,38 @@
+import system.io as io;
+// @benchmark: name="Mixed Workload" iterations=50000 category="realworld"
+// Comprehensive mixed workload - typical application simulation
+
+fn math_heavy(n) {
+    let result = 0;
+    let i = 0;
+    while (i < 10) {
+        result = result + n * 2;
+        result = result - n / 2;
+        i = i + 1;
+    }
+    return result;
+}
+
+fn conditional_heavy(n) {
+    let count = 0;
+    if (n > 100) { count = count + 1; }
+    if (n > 200) { count = count + 1; }
+    if (n > 300) { count = count + 1; }
+    if (n < 50) { count = count + 1; }
+    if (n == 0) { count = count + 1; }
+    return count;
+}
+
+fn call_heavy(a, b, c, d) {
+    return a + b + c + d;
+}
+
+let total = 0;
+let i = 0;
+while (i < 50000) {
+    total = total + math_heavy(i);
+    total = total + conditional_heavy(i);
+    total = total + call_heavy(i, i+1, i+2, i+3);
+    i = i + 1;
+}
+io.out.println(total);

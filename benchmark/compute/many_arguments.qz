@@ -1,0 +1,20 @@
+import system.io as io;
+// @benchmark: name="Many Arguments" iterations=100000 category="compute"
+// Tests argument passing with multiple parameters
+
+fn sum5(a, b, c, d, e) {
+    return a + b + c + d + e;
+}
+
+fn sum10(a, b, c, d, e, f, g, h, i, j) {
+    return a + b + c + d + e + f + g + h + i + j;
+}
+
+let total = 0;
+let i = 0;
+while (i < 50000) {
+    total = total + sum5(1, 2, 3, 4, 5);
+    total = total + sum10(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+    i = i + 1;
+}
+io.out.println(total);

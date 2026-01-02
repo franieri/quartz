@@ -1,0 +1,18 @@
+import system.io as io;
+// @benchmark: name="Recursive Sum" iterations=100000 category="compute"
+// Tests recursive function call performance
+
+fn sum_recursive(n) {
+    if (n <= 0) {
+        return 0;
+    }
+    return n + sum_recursive(n - 1);
+}
+
+let total = 0;
+let i = 0;
+while (i < 1000) {
+    total = total + sum_recursive(100);
+    i = i + 1;
+}
+io.out.println(total);

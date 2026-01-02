@@ -1,0 +1,33 @@
+import system.io as io;
+// @benchmark: name="Binary Search Simulation" iterations=100000 category="realworld"
+// Binary search algorithm - common search pattern
+
+fn binary_search(target, size) {
+    let low = 0;
+    let high = size - 1;
+    let iterations = 0;
+    
+    while (low <= high) {
+        let mid = (low + high) / 2;
+        iterations = iterations + 1;
+        
+        if (mid == target) {
+            return iterations;
+        }
+        if (mid < target) {
+            low = mid + 1;
+        } else {
+            high = mid - 1;
+        }
+    }
+    return iterations;
+}
+
+let total_iterations = 0;
+let i = 0;
+while (i < 100000) {
+    let target = i - (i / 1000) * 1000;  // 0-999
+    total_iterations = total_iterations + binary_search(target, 1000);
+    i = i + 1;
+}
+io.out.println(total_iterations);

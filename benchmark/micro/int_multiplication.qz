@@ -1,0 +1,14 @@
+import system.io as io;
+// @benchmark: name="Integer Multiplication" iterations=200000 category="micro"
+// Tests the applyBinaryIntInt fast-path for MUL operations
+
+let prod = 1;
+let i = 0;
+while (i < 200000) {
+    prod = prod * 2;
+    prod = prod / 2;  // Keep value bounded
+    prod = prod * 3;
+    prod = prod / 3;
+    i = i + 1;
+}
+io.out.println(prod);

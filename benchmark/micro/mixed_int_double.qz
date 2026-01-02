@@ -1,0 +1,13 @@
+import system.io as io;
+// @benchmark: name="Mixed Int-Double" iterations=200000 category="micro"
+// Tests int-double type promotion paths
+
+let sum = 0.0;
+let i = 0;
+while (i < 200000) {
+    sum = sum + i;        // double + int
+    sum = sum * 2;        // double * int
+    sum = sum / 1000000;  // Keep bounded
+    i = i + 1;
+}
+io.out.println(sum);

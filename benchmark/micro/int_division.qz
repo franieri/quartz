@@ -1,0 +1,15 @@
+import system.io as io;
+// @benchmark: name="Integer Division" iterations=200000 category="micro"
+// Tests the applyBinaryIntInt fast-path for DIV operations
+
+let val = 1000000;
+let i = 1;
+while (i < 200000) {
+    val = val / 2;
+    val = val * 2;  // Restore value
+    val = val / 3;
+    val = val * 3;
+    val = val + 1;  // Prevent zero
+    i = i + 1;
+}
+io.out.println(val);

@@ -1,0 +1,12 @@
+category,name,avg_ms,std_dev,min_ms,max_ms,runs
+micro,bool_conditions,53,0,53,54,3
+micro,comparisons,119,0,118,120,3
+micro,double_arithmetic,77,0,77,78,3
+micro,int_addition,78,0,77,79,3
+micro,int_conditions,53,0,53,53,3
+micro,int_division,93,0,93,94,3
+micro,int_multiplication,78,1.41,77,80,3
+micro,int_subtraction,90,0,89,91,3
+micro,logical_not,55,0,55,56,3
+micro,mixed_int_double,67,0,66,68,3
+micro,unary_negation,55,39.37,0,84,3

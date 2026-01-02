@@ -1,0 +1,18 @@
+import system.io as io;
+// @benchmark: name="Boolean Conditions" iterations=200000 category="micro"
+// Tests evalCondition fast-path for bool type
+
+let flag = true;
+let count = 0;
+let i = 0;
+while (i < 200000) {
+    if (flag) {
+        count = count + 1;
+        flag = false;
+    } else {
+        count = count + 2;
+        flag = true;
+    }
+    i = i + 1;
+}
+io.out.println(count);

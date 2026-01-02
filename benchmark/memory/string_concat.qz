@@ -1,0 +1,11 @@
+import system.io as io;
+// @benchmark: name="String Concatenation" iterations=2000 category="memory"
+// Tests string building performance
+
+let s = "";
+let i = 0;
+while (i < 2000) {
+    s = s + "x";
+    i = i + 1;
+}
+io.out.println(i);

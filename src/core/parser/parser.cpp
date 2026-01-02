@@ -36,10 +36,12 @@ AST Parser::parse() {
 // ============================================================================
 
 Token Parser::peek() const {
+    if (current >= tokens.size()) return Token(TokenType::EOF_TOKEN, "", 0, 0);
     return tokens[current];
 }
 
 Token Parser::previous() const {
+    if (current == 0) return Token(TokenType::EOF_TOKEN, "", 0, 0);
     return tokens[current - 1];
 }
 

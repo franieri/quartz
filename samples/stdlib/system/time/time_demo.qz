@@ -1,0 +1,50 @@
+// Time Extension Demo
+// Tests all system.time functions
+
+import system.time as time;
+import system.io as io;
+
+// Get current timestamp
+int now = time.now();
+io.println("Current timestamp:", now);
+
+// Format the current time
+string formatted = time.format(now, "%Y-%m-%d %H:%M:%S");
+io.println("Formatted:", formatted);
+
+// Extract date components
+int year = time.year(now);
+int month = time.month(now);
+int day = time.day(now);
+int hour = time.hour(now);
+int minute = time.minute(now);
+int second = time.second(now);
+int weekday = time.weekday(now);
+
+io.println("Year:", year);
+io.println("Month:", month);
+io.println("Day:", day);
+io.println("Hour:", hour);
+io.println("Minute:", minute);
+io.println("Second:", second);
+io.println("Weekday:", weekday);
+
+// Parse a date string
+int parsed = time.parse("2026-01-01", "%Y-%m-%d");
+io.println("Parsed 2026-01-01:", parsed);
+
+// Date arithmetic
+int tomorrow = time.addDays(now, 1);
+io.println("Tomorrow:", time.format(tomorrow, "%Y-%m-%d"));
+
+int nextHour = time.addSeconds(now, 3600);
+io.println("Next hour:", time.format(nextHour, "%H:%M:%S"));
+
+// Difference calculation
+int diff = time.diff(tomorrow, now);
+io.println("Seconds until tomorrow:", diff);
+
+// Sleep test (100ms)
+io.println("Sleeping for 100ms...");
+time.sleep(100);
+io.println("Done!");

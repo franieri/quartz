@@ -18,6 +18,8 @@
 #include <cctype>
 #include <thread>
 #include <chrono>
+#include <charconv>
+#include <cmath>
 
 #if defined(__APPLE__)
 #include <mach-o/dyld.h>
@@ -357,6 +359,56 @@ const std::vector<uint8_t>* Runtime::getBuffer(const BufferRef& ref) const {
     return &it->second;
 }
 
+// Fast, predictable double formatting.
+// - Uses std::to_chars (no locale, no allocations)
+// - Emits a compact representation (no trailing zeros)
+// - Handles NaN/Inf explicitly
+static inline void appendDoubleFast(std::string& out, double v) {
+    if (std::isnan(v)) {
+        out += "nan";
+        return;
+    }
+    if (std::isinf(v)) {
+        out += (v < 0) ? "-inf" : "inf";
+        return;
+    }
+
+    // Fits typical double text forms, including scientific.
+    // 64 is conservative; avoids overflow for extreme exponents.
+    char buf[64];
+    auto res = std::to_chars(std::begin(buf), std::end(buf), v, std::chars_format::general);
+    if (res.ec != std::errc{}) {
+        // Fallback: should be rare. Keep behavior correct over fast.
+        out += std::to_string(v);
+        return;
+    }
+
+    // Trim trailing zeros in the fractional part when not using scientific notation.
+    // std::to_chars(general) may still emit trailing zeros depending on lib.
+    char* begin = buf;
+    char* end = res.ptr;
+    char* ePos = static_cast<char*>(memchr(begin, 'e', end - begin));
+    if (!ePos) ePos = static_cast<char*>(memchr(begin, 'E', end - begin));
+    char* dotPos = static_cast<char*>(memchr(begin, '.', (ePos ? (ePos - begin) : (end - begin))));
+    if (dotPos) {
+        char* trimEnd = ePos ? ePos : end;
+        while (trimEnd > dotPos + 1 && *(trimEnd - 1) == '0') {
+            --trimEnd;
+        }
+        if (trimEnd > dotPos && *(trimEnd - 1) == '.') {
+            --trimEnd;
+        }
+
+        out.append(begin, trimEnd - begin);
+        if (ePos) {
+            out.append(ePos, end - ePos);
+        }
+        return;
+    }
+
+    out.append(begin, end - begin);
+}
+
 size_t Runtime::bufferSize(const BufferRef& ref) const {
     std::lock_guard<std::mutex> lock(bufferStorageMtx);
     auto it = bufferStorage.find(ref.id);
@@ -457,7 +509,7 @@ static inline void appendFormatted(std::string& out, const Runtime* rt, const Va
         if constexpr (std::is_same_v<T, int>) {
             out += std::to_string(arg);
         } else if constexpr (std::is_same_v<T, double>) {
-            out += std::to_string(arg);
+            appendDoubleFast(out, arg);
         } else if constexpr (std::is_same_v<T, bool>) {
             out += arg ? "true" : "false";
         } else if constexpr (std::is_same_v<T, std::string>) {

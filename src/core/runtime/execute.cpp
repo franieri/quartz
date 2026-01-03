@@ -14,8 +14,43 @@
 #include <fstream>
 #include <filesystem>
 #include <algorithm>
+#include <charconv>
+#include <cmath>
 
 namespace fs = std::filesystem;
+
+static inline void appendDoubleFast(std::string& out, double v) {
+    if (std::isnan(v)) {
+        out += "nan";
+        return;
+    }
+    if (std::isinf(v)) {
+        out += (v < 0) ? "-inf" : "inf";
+        return;
+    }
+
+    char buf[64];
+    auto res = std::to_chars(std::begin(buf), std::end(buf), v, std::chars_format::general);
+    if (res.ec != std::errc{}) {
+        out += std::to_string(v);
+        return;
+    }
+
+    char* begin = buf;
+    char* end = res.ptr;
+    char* ePos = static_cast<char*>(memchr(begin, 'e', end - begin));
+    if (!ePos) ePos = static_cast<char*>(memchr(begin, 'E', end - begin));
+    char* dotPos = static_cast<char*>(memchr(begin, '.', (ePos ? (ePos - begin) : (end - begin))));
+    if (dotPos) {
+        char* trimEnd = ePos ? ePos : end;
+        while (trimEnd > dotPos + 1 && *(trimEnd - 1) == '0') --trimEnd;
+        if (trimEnd > dotPos && *(trimEnd - 1) == '.') --trimEnd;
+        out.append(begin, trimEnd - begin);
+        if (ePos) out.append(ePos, end - ePos);
+        return;
+    }
+    out.append(begin, end - begin);
+}
 
 // Helper to append value to string (avoids repeated branching)
 static inline void appendValueRepr(std::string& out, const Value& val) {
@@ -24,7 +59,7 @@ static inline void appendValueRepr(std::string& out, const Value& val) {
         if constexpr (std::is_same_v<T, int>) {
             out += std::to_string(arg);
         } else if constexpr (std::is_same_v<T, double>) {
-            out += std::to_string(arg);
+            appendDoubleFast(out, arg);
         } else if constexpr (std::is_same_v<T, std::string>) {
             out += '"';
             out += arg;

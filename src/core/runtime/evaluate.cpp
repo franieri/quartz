@@ -10,6 +10,7 @@
 
 #include <charconv>
 #include <cmath>
+#include <cstring>
 
 static inline void appendDoubleFast(std::string& out, double v) {
     if (std::isnan(v)) {
@@ -137,13 +138,8 @@ Value Runtime::evaluate(const ASTNodePtr& node) {
             arrayVec.push_back(evaluate(child));
         }
 
-        // Store the actual array and return the handle (integer ID)
-        size_t arrayId = nextArrayId++;
-        if (arrayId >= arrayStorage.size()) {
-            arrayStorage.resize(arrayId + 1);
-        }
-        arrayStorage[arrayId] = std::move(arrayVec);
-        return Value(ArrayRef{arrayId});
+        // Store the actual array using ARC-managed allocation
+        return makeArray(std::move(arrayVec));
     }
 
     case NodeType::Dict: {
@@ -159,13 +155,8 @@ Value Runtime::evaluate(const ASTNodePtr& node) {
             }
         }
 
-        // Store the actual dict and return the handle (integer ID)
-        size_t dictId = nextDictId++;
-        if (dictId >= dictStorage.size()) {
-            dictStorage.resize(dictId + 1);
-        }
-        dictStorage[dictId] = std::move(dictMap);
-        return Value(DictRef{dictId});
+        // Store the actual dict using ARC-managed allocation
+        return makeDict(std::move(dictMap));
     }
 
     case NodeType::Index: {
@@ -179,8 +170,8 @@ Value Runtime::evaluate(const ASTNodePtr& node) {
         if (std::holds_alternative<ArrayRef>(containerVal) && std::holds_alternative<int>(indexValue)) {
             size_t id = std::get<ArrayRef>(containerVal).id;
             int idx = std::get<int>(indexValue);
-            if (id < arrayStorage.size()) {
-                auto& vec = arrayStorage[id];
+            if (id < arrayStorage.size() && arrayStorage[id].refcount > 0) {
+                auto& vec = arrayStorage[id].data;
                 if (idx >= 0 && idx < (int)vec.size()) return vec[(size_t)idx];
             }
             return Value{};
@@ -189,8 +180,8 @@ Value Runtime::evaluate(const ASTNodePtr& node) {
         if (std::holds_alternative<DictRef>(containerVal) && std::holds_alternative<std::string>(indexValue)) {
             size_t id = std::get<DictRef>(containerVal).id;
             const std::string& key = std::get<std::string>(indexValue);
-            if (id < dictStorage.size()) {
-                auto& dict = dictStorage[id];
+            if (id < dictStorage.size() && dictStorage[id].refcount > 0) {
+                auto& dict = dictStorage[id].data;
                 auto kIt = dict.find(key);
                 if (kIt != dict.end()) return kIt->second;
             }
@@ -204,8 +195,8 @@ Value Runtime::evaluate(const ASTNodePtr& node) {
             if (aIt != varToArrayId.end() && std::holds_alternative<int>(indexValue)) {
                 int idx = std::get<int>(indexValue);
                 size_t id = aIt->second;
-                if (id < arrayStorage.size()) {
-                    auto& vec = arrayStorage[id];
+                if (id < arrayStorage.size() && arrayStorage[id].refcount > 0) {
+                    auto& vec = arrayStorage[id].data;
                     if (idx >= 0 && idx < (int)vec.size()) return vec[(size_t)idx];
                 }
             }
@@ -213,8 +204,8 @@ Value Runtime::evaluate(const ASTNodePtr& node) {
             if (dIt != varToDictId.end() && std::holds_alternative<std::string>(indexValue)) {
                 const std::string& key = std::get<std::string>(indexValue);
                 size_t id = dIt->second;
-                if (id < dictStorage.size()) {
-                    auto& dict = dictStorage[id];
+                if (id < dictStorage.size() && dictStorage[id].refcount > 0) {
+                    auto& dict = dictStorage[id].data;
                     auto kIt = dict.find(key);
                     if (kIt != dict.end()) return kIt->second;
                 }
@@ -299,14 +290,18 @@ Value Runtime::evaluate(const ASTNodePtr& node) {
             if (classDef.hasConstructor) {
                 const ConstructorDef& constructor = classDef.constructor;
                 
-                // Save current scope
+                // ARC: Save current scope and retain
                 auto savedVars = variables;
+                retainScope(savedVars);
                 auto savedThisObject = currentThisObject;
                 currentThisObject = objId;
                 
-                // Bind constructor parameters to arguments
+                // ARC: Push constructor scope (retain captured scope)
+                pushScope(std::unordered_map<std::string, Value>{});
+                
+                // Bind constructor parameters to arguments (ARC-aware via setVariable)
                 for (size_t i = 0; i < constructor.parameters.size() && i < constructorArgs.size(); ++i) {
-                    variables[constructor.parameters[i].first] = constructorArgs[i];
+                    setVariable(constructor.parameters[i].first, constructorArgs[i]);
                 }
                 
                 // Execute field initializers
@@ -322,8 +317,8 @@ Value Runtime::evaluate(const ASTNodePtr& node) {
                     executeMethodBody(constructor.body);
                 }
                 
-                // Restore scope
-                variables = savedVars;
+                // ARC: Restore scope
+                popScope(savedVars);
                 currentThisObject = savedThisObject;
             }
             
@@ -464,21 +459,28 @@ Value Runtime::evaluate(const ASTNodePtr& node) {
                                 }
                                 
                                 // Found the method - execute it
-                                // Save current variables and set up method scope
+                                // ARC: Save current variables and retain
                                 auto savedVars = variables;
+                                retainScope(savedVars);
                                 auto savedThisObject = currentThisObject;
                                 currentThisObject = objIt->first;
                                 
-                                // Bind parameters to arguments
+                                // ARC: Push method scope
+                                pushScope(std::unordered_map<std::string, Value>{});
+                                
+                                // Bind parameters to arguments (ARC-aware via setVariable)
                                 for (size_t i = 0; i < method.parameters.size() && i < args.size(); ++i) {
-                                    variables[method.parameters[i].first] = args[i];
+                                    setVariable(method.parameters[i].first, args[i]);
                                 }
                                 
                                 // Execute method body
                                 Value result = executeMethodBody(method.body);
                                 
-                                // Restore variables
-                                variables = savedVars;
+                                // ARC: Retain result before scope switch
+                                retainValue(result);
+                                
+                                // ARC: Restore variables
+                                popScope(savedVars);
                                 currentThisObject = savedThisObject;
                                 
                                 return result;
@@ -733,20 +735,21 @@ Value Runtime::invokeLambda(const std::string& lambdaId, const std::vector<Value
     const StoredLambda& lambda = it->second;
     const ASTNodePtr& lambdaNode = lambda.node;
     
-    // Save current variables
+    // ARC: Save current variables (retain them so they survive scope switch)
     auto savedVars = variables;
+    retainScope(savedVars);
     
-    // Restore captured variables
-    variables = lambda.captures;
+    // ARC: Switch to captured variables scope
+    pushScope(lambda.captures);
     
-    // Bind parameters to arguments
+    // Bind parameters to arguments (uses setVariable for ARC)
     // Lambda children: [param1, param2, ..., body]
     size_t paramCount = lambdaNode->children.size() - 1;  // Last child is body
     for (size_t i = 0; i < paramCount && i < args.size(); ++i) {
         const ASTNodePtr& param = lambdaNode->children[i];
         if (param->type == NodeType::Parameter) {
             std::string paramName = std::get<std::string>(param->value);
-            variables[paramName] = args[i];
+            setVariable(paramName, args[i]);
         }
     }
     
@@ -763,8 +766,15 @@ Value Runtime::invokeLambda(const std::string& lambdaId, const std::vector<Value
         result = executeMethodBody(body);
     }
     
-    // Restore variables
-    variables = savedVars;
+    // ARC: Retain result before scope switch (it might reference current scope data)
+    retainValue(result);
+    
+    // ARC: Restore saved variables
+    popScope(savedVars);
+    
+    // ARC: Release the extra retain we did on savedVars (popScope doesn't retain)
+    // Note: savedVars values are now in `variables`, which has proper refcounts
     
     return result;
 }
+

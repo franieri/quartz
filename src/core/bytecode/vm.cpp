@@ -279,8 +279,8 @@ Value BytecodeVM::indexGet(const std::string& varName, const Value& indexValue) 
     if (aIt != runtime.varToArrayId.end() && std::holds_alternative<int>(indexValue)) {
         int idx = std::get<int>(indexValue);
         size_t id = aIt->second;
-        if (id < runtime.arrayStorage.size()) {
-            auto& vec = runtime.arrayStorage[id];
+        if (id < runtime.arrayStorage.size() && runtime.arrayStorage[id].refcount > 0) {
+            auto& vec = runtime.arrayStorage[id].data;
             if (idx < 0 || idx >= (int)vec.size()) {
                 throw LanguageException("IndexError", "Array index out of bounds: " + std::to_string(idx) + " (size: " + std::to_string(vec.size()) + ")");
             }
@@ -292,8 +292,8 @@ Value BytecodeVM::indexGet(const std::string& varName, const Value& indexValue) 
     if (dIt != runtime.varToDictId.end() && std::holds_alternative<std::string>(indexValue)) {
         const std::string& key = std::get<std::string>(indexValue);
         size_t id = dIt->second;
-        if (id < runtime.dictStorage.size()) {
-            auto& dict = runtime.dictStorage[id];
+        if (id < runtime.dictStorage.size() && runtime.dictStorage[id].refcount > 0) {
+            auto& dict = runtime.dictStorage[id].data;
             auto kIt = dict.find(key);
             if (kIt != dict.end()) return kIt->second;
             throw LanguageException("KeyError", "Dictionary key not found: '" + key + "'");
@@ -670,13 +670,18 @@ Value BytecodeVM::newObject(const std::string& fullClassName, const std::vector<
 
     // constructor
     if (cIt->second.hasConstructor && cIt->second.ctorFunctionIndex != bc::kInvalidIndex) {
+        // ARC: Save current scope and retain
         auto savedVars = runtime.variables;
+        runtime.retainScope(savedVars);
         auto savedThis = runtime.currentThisObject;
         runtime.currentThisObject = objId;
 
-        // bind params
+        // ARC: Push constructor scope
+        runtime.pushScope(std::unordered_map<std::string, Value>{});
+
+        // bind params (ARC-aware via setVariable)
         for (size_t i = 0; i < cIt->second.ctorParams.size() && i < args.size(); ++i) {
-            runtime.variables[cIt->second.ctorParams[i]] = args[i];
+            runtime.setVariable(cIt->second.ctorParams[i], args[i]);
         }
 
         // field initializers
@@ -687,7 +692,8 @@ Value BytecodeVM::newObject(const std::string& fullClassName, const std::vector<
 
         runFunction(cIt->second.ctorFunctionIndex, args, nullptr, &runtime.currentThisObject, error);
 
-        runtime.variables = savedVars;
+        // ARC: Restore scope
+        runtime.popScope(savedVars);
         runtime.currentThisObject = savedThis;
     }
 
@@ -709,16 +715,21 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
     // Check if we have pre-decoded metadata available
     const bool useCachedMetadata = fn.hasCachedMetadata && !fn.instructionCache.empty();
 
-    // Save/override variable scope for calls (mirrors interpreter behavior)
+    // ARC: Save/override variable scope for calls (mirrors interpreter behavior)
     auto savedVars = runtime.variables;
+    runtime.retainScope(savedVars);
     auto savedThis = runtime.currentThisObject;
 
-    if (overrideVars) runtime.variables = *overrideVars;
+    if (overrideVars) {
+        runtime.pushScope(*overrideVars);
+    } else {
+        runtime.pushScope(std::unordered_map<std::string, Value>{});
+    }
     if (overrideThis) runtime.currentThisObject = *overrideThis;
 
-    // Bind parameters into runtime.variables (like interpreter)
+    // Bind parameters into runtime.variables (ARC-aware via setVariable)
     for (size_t i = 0; i < fn.paramNameStrings.size() && i < args.size(); ++i) {
-        runtime.variables[str(fn.paramNameStrings[i])] = args[i];
+        runtime.setVariable(str(fn.paramNameStrings[i]), args[i]);
     }
 
     // Slot locals (fast-path) - pre-reserve to avoid reallocations
@@ -762,8 +773,9 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
 
     auto push = [&](Value v) { stack.push_back(std::move(v)); };
 
+    // ARC: Restore scope helper for exceptions
     auto restoreAndThrow = [&](const LanguageException& ex) -> void {
-        runtime.variables = savedVars;
+        runtime.popScope(savedVars);
         runtime.currentThisObject = savedThis;
         throw ex;
     };
@@ -817,7 +829,8 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
         bc::OpCode op = (bc::OpCode)readU8(code, ip, &ok);
         if (!ok) {
             if (error) *error = "Bytecode decode error";
-            runtime.variables = savedVars;
+            // ARC: Restore scope on error
+            runtime.popScope(savedVars);
             runtime.currentThisObject = savedThis;
             return Value{};
         }
@@ -1003,14 +1016,11 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
                 arrayVec.resize(count);
                 for (int i = (int)count - 1; i >= 0; --i) arrayVec[(size_t)i] = pop();
 
-                size_t arrayId = runtime.nextArrayId++;
-                if (arrayId >= runtime.arrayStorage.size()) {
-                    runtime.arrayStorage.resize(arrayId + 1);
-                }
+                // Use ARC-managed allocation
+                Value arrVal = runtime.makeArray(std::move(arrayVec));
+                size_t arrayId = std::get<ArrayRef>(arrVal).id;
                 runtime.varToArrayId[varName] = arrayId;
-                runtime.arrayStorage[arrayId] = arrayVec;
-
-                runtime.setVariable(varName, Value(ArrayRef{arrayId}));
+                runtime.setVariable(varName, arrVal);
                 break;
             }
 
@@ -1031,14 +1041,11 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
                 for (int i = (int)count - 1; i >= 0; --i) values[(size_t)i] = pop();
                 for (size_t i = 0; i < count; ++i) dictMap[keys[i]] = values[i];
 
-                size_t dictId = runtime.nextDictId++;
-                if (dictId >= runtime.dictStorage.size()) {
-                    runtime.dictStorage.resize(dictId + 1);
-                }
+                // Use ARC-managed allocation
+                Value dictVal = runtime.makeDict(std::move(dictMap));
+                size_t dictId = std::get<DictRef>(dictVal).id;
                 runtime.varToDictId[varName] = dictId;
-                runtime.dictStorage[dictId] = dictMap;
-
-                runtime.setVariable(varName, Value(DictRef{dictId}));
+                runtime.setVariable(varName, dictVal);
                 break;
             }
 
@@ -1050,12 +1057,8 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
                 arrayVec.resize(count);
                 for (int i = (int)count - 1; i >= 0; --i) arrayVec[(size_t)i] = pop();
 
-                size_t arrayId = runtime.nextArrayId++;
-                if (arrayId >= runtime.arrayStorage.size()) {
-                    runtime.arrayStorage.resize(arrayId + 1);
-                }
-                runtime.arrayStorage[arrayId] = std::move(arrayVec);
-                push(Value(ArrayRef{arrayId}));
+                // Use ARC-managed allocation
+                push(runtime.makeArray(std::move(arrayVec)));
                 break;
             }
 
@@ -1076,12 +1079,8 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
                     dictMap[keys[i]] = values[i];
                 }
 
-                size_t dictId = runtime.nextDictId++;
-                if (dictId >= runtime.dictStorage.size()) {
-                    runtime.dictStorage.resize(dictId + 1);
-                }
-                runtime.dictStorage[dictId] = std::move(dictMap);
-                push(Value(DictRef{dictId}));
+                // Use ARC-managed allocation
+                push(runtime.makeDict(std::move(dictMap)));
                 break;
             }
 
@@ -1329,13 +1328,17 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
 
             case bc::OpCode::RETURN_VALUE: {
                 Value rv = pop();
-                runtime.variables = savedVars;
+                // ARC: Retain return value before scope switch
+                runtime.retainValue(rv);
+                // ARC: Restore scope
+                runtime.popScope(savedVars);
                 runtime.currentThisObject = savedThis;
                 return rv;
             }
 
             case bc::OpCode::RETURN_VOID:
-                runtime.variables = savedVars;
+                // ARC: Restore scope
+                runtime.popScope(savedVars);
                 runtime.currentThisObject = savedThis;
                 return Value{};
 
@@ -1552,7 +1555,8 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
         }
     }
 
-    runtime.variables = savedVars;
+    // ARC: Restore scope at end of function
+    runtime.popScope(savedVars);
     runtime.currentThisObject = savedThis;
     return Value{};
 }

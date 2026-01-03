@@ -705,6 +705,9 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
 
     const bc::Function& fn = prog->functions[functionIndex];
     const std::vector<uint8_t>& code = fn.code;
+    
+    // Check if we have pre-decoded metadata available
+    const bool useCachedMetadata = fn.hasCachedMetadata && !fn.instructionCache.empty();
 
     // Save/override variable scope for calls (mirrors interpreter behavior)
     auto savedVars = runtime.variables;
@@ -809,6 +812,7 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
     };
 
     while (ip < code.size()) {
+        const size_t instructionStart = ip;
         bool ok = true;
         bc::OpCode op = (bc::OpCode)readU8(code, ip, &ok);
         if (!ok) {
@@ -817,6 +821,32 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
             runtime.currentThisObject = savedThis;
             return Value{};
         }
+        
+        // ====================================================================
+        // Optimized Instruction Decoding Path
+        // ====================================================================
+        // If metadata cache is available, lookup pre-decoded instruction data
+        // to avoid repeated readU32/readI32 calls. This significantly improves
+        // performance for hot-path instructions in tight loops.
+        //
+        // The metadata cache is populated during bytecode loading (see
+        // extractInstructionMetadata in bytecode.cpp) and contains pre-decoded
+        // immediates and pre-computed jump targets.
+        //
+        // For instructions without cached metadata, we fall back to the
+        // traditional runtime decoding path (calling readU32, readI32, etc).
+        // ====================================================================
+        const bc::InstructionMeta* meta = nullptr;
+        if (useCachedMetadata) {
+            // Linear lookup is acceptable for small functions (typical case)
+            // For very large functions, binary search could be beneficial
+            for (const auto& m : fn.instructionCache) {
+                if (m.ip == instructionStart) {
+                    meta = &m;
+                    break;
+                }
+            }
+        }
 
         try {
             switch (op) {
@@ -824,8 +854,15 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
                 break;
 
             case bc::OpCode::PUSH_INT32: {
-                int32_t v = readI32(code, ip, &ok);
-                if (!ok) throw std::runtime_error("Bytecode decode error");
+                int32_t v;
+                if (VM_LIKELY(meta != nullptr)) {
+                    // Use pre-decoded value (still need to advance IP manually)
+                    v = static_cast<int32_t>(meta->imm0);
+                    ip += 4; // Skip the 4-byte immediate
+                } else {
+                    v = readI32(code, ip, &ok);
+                    if (!ok) throw std::runtime_error("Bytecode decode error");
+                }
                 push(Value((int)v));
                 break;
             }
@@ -838,15 +875,27 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
             }
 
             case bc::OpCode::PUSH_BOOL: {
-                uint8_t b = readU8(code, ip, &ok);
-                if (!ok) throw std::runtime_error("Bytecode decode error");
+                uint8_t b;
+                if (VM_LIKELY(meta != nullptr)) {
+                    b = static_cast<uint8_t>(meta->imm0);
+                    ip += 1; // Skip the 1-byte immediate
+                } else {
+                    b = readU8(code, ip, &ok);
+                    if (!ok) throw std::runtime_error("Bytecode decode error");
+                }
                 push(Value(b != 0));
                 break;
             }
 
             case bc::OpCode::PUSH_STRING: {
-                uint32_t sidx = readU32(code, ip, &ok);
-                if (!ok) throw std::runtime_error("Bytecode decode error");
+                uint32_t sidx;
+                if (VM_LIKELY(meta != nullptr)) {
+                    sidx = meta->imm0;
+                    ip += 4; // Skip the 4-byte immediate
+                } else {
+                    sidx = readU32(code, ip, &ok);
+                    if (!ok) throw std::runtime_error("Bytecode decode error");
+                }
                 push(Value(str(sidx)));
                 break;
             }
@@ -856,7 +905,13 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
                 break;
 
             case bc::OpCode::LOAD_VAR: {
-                uint32_t nidx = readU32(code, ip, &ok);
+                uint32_t nidx;
+                if (VM_LIKELY(meta != nullptr)) {
+                    nidx = meta->imm0;
+                    ip += 4; // Skip the 4-byte immediate
+                } else {
+                    nidx = readU32(code, ip, &ok);
+                }
                 std::string name = str(nidx);
 
                 // Mirror Runtime::evaluate Identifier dot access
@@ -888,8 +943,14 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
             }
 
             case bc::OpCode::LOAD_SLOT: {
-                uint16_t slot = readU16(code, ip, &ok);
-                if (!ok) throw std::runtime_error("Bytecode decode error");
+                uint16_t slot;
+                if (VM_LIKELY(meta != nullptr)) {
+                    slot = static_cast<uint16_t>(meta->imm0);
+                    ip += 2; // Skip the 2-byte immediate
+                } else {
+                    slot = readU16(code, ip, &ok);
+                    if (!ok) throw std::runtime_error("Bytecode decode error");
+                }
                 if (slot >= locals.size()) {
                     throw LanguageException("RuntimeError", "Local slot index out of bounds: " + std::to_string(slot));
                 }
@@ -898,7 +959,13 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
             }
 
             case bc::OpCode::STORE_VAR: {
-                uint32_t nidx = readU32(code, ip, &ok);
+                uint32_t nidx;
+                if (VM_LIKELY(meta != nullptr)) {
+                    nidx = meta->imm0;
+                    ip += 4; // Skip the 4-byte immediate
+                } else {
+                    nidx = readU32(code, ip, &ok);
+                }
                 std::string name = str(nidx);
                 Value v = pop();
                 runtime.setVariable(name, v);
@@ -906,8 +973,14 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
             }
 
             case bc::OpCode::STORE_SLOT: {
-                uint16_t slot = readU16(code, ip, &ok);
-                if (!ok) throw std::runtime_error("Bytecode decode error");
+                uint16_t slot;
+                if (VM_LIKELY(meta != nullptr)) {
+                    slot = static_cast<uint16_t>(meta->imm0);
+                    ip += 2; // Skip the 2-byte immediate
+                } else {
+                    slot = readU16(code, ip, &ok);
+                    if (!ok) throw std::runtime_error("Bytecode decode error");
+                }
                 Value v = pop();
                 if (slot >= locals.size()) {
                     throw LanguageException("RuntimeError", "Local slot index out of bounds: " + std::to_string(slot));
@@ -1067,48 +1140,78 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
             }
 
             case bc::OpCode::JUMP: {
-                int32_t rel = readI32(code, ip, &ok);
-                if (!ok) throw std::runtime_error("Bytecode decode error");
-                int64_t newIp = (int64_t)ip + rel;
-                if (newIp < 0 || (size_t)newIp > code.size()) {
-                    throw LanguageException("RuntimeError", "Invalid jump target: out of bounds");
-                }
-                ip = (size_t)newIp;
-                break;
-            }
-
-            case bc::OpCode::JUMP_IF_FALSE: {
-                int32_t rel = readI32(code, ip, &ok);
-                if (!ok) throw std::runtime_error("Bytecode decode error");
-                Value cond = pop();
-                if (!evalCondition(cond)) {
+                size_t target;
+                if (VM_LIKELY(meta != nullptr)) {
+                    // Pre-computed absolute target (validated at load time)
+                    target = meta->imm0;
+                    ip += 4; // Skip the 4-byte relative offset
+                } else {
+                    int32_t rel = readI32(code, ip, &ok);
+                    if (!ok) throw std::runtime_error("Bytecode decode error");
                     int64_t newIp = (int64_t)ip + rel;
                     if (newIp < 0 || (size_t)newIp > code.size()) {
                         throw LanguageException("RuntimeError", "Invalid jump target: out of bounds");
                     }
-                    ip = (size_t)newIp;
+                    target = (size_t)newIp;
+                }
+                ip = target;
+                break;
+            }
+
+            case bc::OpCode::JUMP_IF_FALSE: {
+                size_t target;
+                if (VM_LIKELY(meta != nullptr)) {
+                    target = meta->imm0;
+                    ip += 4; // Skip the 4-byte relative offset
+                } else {
+                    int32_t rel = readI32(code, ip, &ok);
+                    if (!ok) throw std::runtime_error("Bytecode decode error");
+                    int64_t newIp = (int64_t)ip + rel;
+                    if (newIp < 0 || (size_t)newIp > code.size()) {
+                        throw LanguageException("RuntimeError", "Invalid jump target: out of bounds");
+                    }
+                    target = (size_t)newIp;
+                }
+                Value cond = pop();
+                if (!evalCondition(cond)) {
+                    ip = target;
                 }
                 break;
             }
 
             case bc::OpCode::JUMP_IF_TRUE: {
-                int32_t rel = readI32(code, ip, &ok);
-                if (!ok) throw std::runtime_error("Bytecode decode error");
-                Value cond = pop();
-                if (evalCondition(cond)) {
+                size_t target;
+                if (VM_LIKELY(meta != nullptr)) {
+                    target = meta->imm0;
+                    ip += 4; // Skip the 4-byte relative offset
+                } else {
+                    int32_t rel = readI32(code, ip, &ok);
+                    if (!ok) throw std::runtime_error("Bytecode decode error");
                     int64_t newIp = (int64_t)ip + rel;
                     if (newIp < 0 || (size_t)newIp > code.size()) {
                         throw LanguageException("RuntimeError", "Invalid jump target: out of bounds");
                     }
-                    ip = (size_t)newIp;
+                    target = (size_t)newIp;
+                }
+                Value cond = pop();
+                if (evalCondition(cond)) {
+                    ip = target;
                 }
                 break;
             }
 
             case bc::OpCode::CALL_NAME: {
-                uint32_t nidx = readU32(code, ip, &ok);
-                uint8_t argc = readU8(code, ip, &ok);
-                if (!ok) throw std::runtime_error("Bytecode decode error");
+                uint32_t nidx;
+                uint8_t argc;
+                if (VM_LIKELY(meta != nullptr)) {
+                    nidx = meta->imm0;
+                    argc = static_cast<uint8_t>(meta->imm1);
+                    ip += 5; // Skip u32 + u8
+                } else {
+                    nidx = readU32(code, ip, &ok);
+                    argc = readU8(code, ip, &ok);
+                    if (!ok) throw std::runtime_error("Bytecode decode error");
+                }
 
                 std::vector<Value> callArgs;
                 callArgs.reserve(vm_config::kDefaultArgsReserve);
@@ -1121,10 +1224,17 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
             }
 
             case bc::OpCode::NEW_OBJECT: {
-                uint32_t nidx = readU32(code, ip, &ok);
-                uint8_t argc = readU8(code, ip, &ok);
-                if (!ok) throw std::runtime_error("Bytecode decode error");
-
+                uint32_t nidx;
+                uint8_t argc;
+                if (VM_LIKELY(meta != nullptr)) {
+                    nidx = meta->imm0;
+                    argc = static_cast<uint8_t>(meta->imm1);
+                    ip += 5; // Skip u32 + u8
+                } else {
+                    nidx = readU32(code, ip, &ok);
+                    argc = readU8(code, ip, &ok);
+                    if (!ok) throw std::runtime_error("Bytecode decode error");
+                }
                 std::vector<Value> ctorArgs;
                 ctorArgs.reserve(vm_config::kDefaultArgsReserve);
                 ctorArgs.resize(argc);

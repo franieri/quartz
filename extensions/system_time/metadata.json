@@ -1,0 +1,25 @@
+{
+    "name": "system.time",
+    "author": "Quartz Team",
+    "version": "1.0.0",
+    "description": "Date and time operations for Quartz",
+    "functions": [
+        {"name": "system.time.now", "params": [], "returns": "int", "description": "Current Unix timestamp in seconds"},
+        {"name": "system.time.nowMs", "params": [], "returns": "int", "description": "Current timestamp in milliseconds"},
+        {"name": "system.time.format", "params": ["timestamp: int", "format: string"], "returns": "string", "description": "Format timestamp using strftime patterns"},
+        {"name": "system.time.parse", "params": ["dateStr: string", "format: string"], "returns": "int", "description": "Parse date string to timestamp"},
+        {"name": "system.time.year", "params": ["timestamp: int"], "returns": "int", "description": "Extract year from timestamp"},
+        {"name": "system.time.month", "params": ["timestamp: int"], "returns": "int", "description": "Extract month (1-12)"},
+        {"name": "system.time.day", "params": ["timestamp: int"], "returns": "int", "description": "Extract day of month (1-31)"},
+        {"name": "system.time.hour", "params": ["timestamp: int"], "returns": "int", "description": "Extract hour (0-23)"},
+        {"name": "system.time.minute", "params": ["timestamp: int"], "returns": "int", "description": "Extract minute (0-59)"},
+        {"name": "system.time.second", "params": ["timestamp: int"], "returns": "int", "description": "Extract second (0-59)"},
+        {"name": "system.time.weekday", "params": ["timestamp: int"], "returns": "int", "description": "Day of week (0=Sunday)"},
+        {"name": "system.time.addSeconds", "params": ["timestamp: int", "seconds: int"], "returns": "int", "description": "Add seconds to timestamp"},
+        {"name": "system.time.addDays", "params": ["timestamp: int", "days: int"], "returns": "int", "description": "Add days to timestamp"},
+        {"name": "system.time.diff", "params": ["t1: int", "t2: int"], "returns": "int", "description": "Difference in seconds"},
+        {"name": "system.time.sleep", "params": ["ms: int"], "returns": "void", "description": "Pause execution for milliseconds"},
+        {"name": "system.time.toLocal", "params": ["timestamp: int"], "returns": "int", "description": "Convert UTC to local timezone"},
+        {"name": "system.time.toUtc", "params": ["timestamp: int"], "returns": "int", "description": "Convert local to UTC"}
+    ]
+}

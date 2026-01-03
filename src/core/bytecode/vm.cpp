@@ -1338,6 +1338,213 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
                 runtime.variables = savedVars;
                 runtime.currentThisObject = savedThis;
                 return Value{};
+
+            // ====================================================================
+            // Specialized opcodes for common patterns (performance optimization)
+            // ====================================================================
+            
+            case bc::OpCode::PUSH_INT32_0:
+                push(Value(0));
+                break;
+                
+            case bc::OpCode::PUSH_INT32_1:
+                push(Value(1));
+                break;
+                
+            case bc::OpCode::PUSH_INT32_NEG1:
+                push(Value(-1));
+                break;
+                
+            case bc::OpCode::PUSH_TRUE:
+                push(Value(true));
+                break;
+                
+            case bc::OpCode::PUSH_FALSE:
+                push(Value(false));
+                break;
+                
+            case bc::OpCode::PUSH_NULL:
+                push(Value(std::string("")));
+                break;
+                
+            case bc::OpCode::LOAD_SLOT_0:
+                if (locals.empty()) {
+                    throw LanguageException("RuntimeError", "Local slot 0 out of bounds");
+                }
+                push(locals[0]);
+                break;
+                
+            case bc::OpCode::STORE_SLOT_0: {
+                if (locals.empty()) {
+                    throw LanguageException("RuntimeError", "Local slot 0 out of bounds");
+                }
+                Value v = pop();
+                locals[0] = v;
+                // Keep runtime.variables in sync
+                if (!fn.localNameStrings.empty()) {
+                    runtime.setVariable(str(fn.localNameStrings[0]), v);
+                }
+                break;
+            }
+            
+            case bc::OpCode::CALL_NAME_0: {
+                uint32_t nidx;
+                if (VM_LIKELY(meta != nullptr)) {
+                    nidx = meta->imm0;
+                    ip += 4;
+                } else {
+                    nidx = readU32(code, ip, &ok);
+                    if (!ok) throw std::runtime_error("Bytecode decode error");
+                }
+                
+                std::vector<Value> callArgs;  // Empty for 0-arg call
+                Value rv = callName(str(nidx), callArgs, error);
+                push(std::move(rv));
+                break;
+            }
+            
+            case bc::OpCode::CALL_NAME_1: {
+                uint32_t nidx;
+                if (VM_LIKELY(meta != nullptr)) {
+                    nidx = meta->imm0;
+                    ip += 4;
+                } else {
+                    nidx = readU32(code, ip, &ok);
+                    if (!ok) throw std::runtime_error("Bytecode decode error");
+                }
+                
+                std::vector<Value> callArgs;
+                callArgs.reserve(1);
+                callArgs.push_back(std::move(pop()));
+                Value rv = callName(str(nidx), callArgs, error);
+                push(std::move(rv));
+                break;
+            }
+            
+            case bc::OpCode::CALL_NAME_2: {
+                uint32_t nidx;
+                if (VM_LIKELY(meta != nullptr)) {
+                    nidx = meta->imm0;
+                    ip += 4;
+                } else {
+                    nidx = readU32(code, ip, &ok);
+                    if (!ok) throw std::runtime_error("Bytecode decode error");
+                }
+                
+                std::vector<Value> callArgs;
+                callArgs.reserve(2);
+                callArgs.resize(2);
+                callArgs[1] = std::move(pop());
+                callArgs[0] = std::move(pop());
+                Value rv = callName(str(nidx), callArgs, error);
+                push(std::move(rv));
+                break;
+            }
+            
+            case bc::OpCode::INCREMENT_SLOT: {
+                uint16_t slot;
+                if (VM_LIKELY(meta != nullptr)) {
+                    slot = static_cast<uint16_t>(meta->imm0);
+                    ip += 2;
+                } else {
+                    slot = readU16(code, ip, &ok);
+                    if (!ok) throw std::runtime_error("Bytecode decode error");
+                }
+                
+                if (slot >= locals.size()) {
+                    throw LanguageException("RuntimeError", "Local slot out of bounds: " + std::to_string(slot));
+                }
+                
+                // Only works for integers
+                if (const int* i = std::get_if<int>(&locals[slot])) {
+                    locals[slot] = Value(*i + 1);
+                    // Sync to variables
+                    if (slot < fn.localNameStrings.size()) {
+                        runtime.setVariable(str(fn.localNameStrings[slot]), locals[slot]);
+                    }
+                } else {
+                    throw LanguageException("RuntimeError", "INCREMENT_SLOT requires integer value");
+                }
+                break;
+            }
+            
+            case bc::OpCode::DECREMENT_SLOT: {
+                uint16_t slot;
+                if (VM_LIKELY(meta != nullptr)) {
+                    slot = static_cast<uint16_t>(meta->imm0);
+                    ip += 2;
+                } else {
+                    slot = readU16(code, ip, &ok);
+                    if (!ok) throw std::runtime_error("Bytecode decode error");
+                }
+                
+                if (slot >= locals.size()) {
+                    throw LanguageException("RuntimeError", "Local slot out of bounds: " + std::to_string(slot));
+                }
+                
+                // Only works for integers
+                if (const int* i = std::get_if<int>(&locals[slot])) {
+                    locals[slot] = Value(*i - 1);
+                    // Sync to variables
+                    if (slot < fn.localNameStrings.size()) {
+                        runtime.setVariable(str(fn.localNameStrings[slot]), locals[slot]);
+                    }
+                } else {
+                    throw LanguageException("RuntimeError", "DECREMENT_SLOT requires integer value");
+                }
+                break;
+            }
+            
+            case bc::OpCode::LOAD_SLOT_PUSH_INT32: {
+                uint16_t slot;
+                int32_t value;
+                if (VM_LIKELY(meta != nullptr)) {
+                    slot = meta->imm1;
+                    value = static_cast<int32_t>(meta->imm0);
+                    ip += 6; // u16 + i32
+                } else {
+                    slot = readU16(code, ip, &ok);
+                    value = readI32(code, ip, &ok);
+                    if (!ok) throw std::runtime_error("Bytecode decode error");
+                }
+                
+                if (slot >= locals.size()) {
+                    throw LanguageException("RuntimeError", "Local slot out of bounds: " + std::to_string(slot));
+                }
+                push(locals[slot]);
+                push(Value((int)value));
+                break;
+            }
+            
+            case bc::OpCode::BINARY_OP_STORE_SLOT: {
+                uint8_t opByte;
+                uint16_t slot;
+                if (VM_LIKELY(meta != nullptr)) {
+                    opByte = static_cast<uint8_t>(meta->imm0);
+                    slot = meta->imm1;
+                    ip += 3; // u8 + u16
+                } else {
+                    opByte = readU8(code, ip, &ok);
+                    slot = readU16(code, ip, &ok);
+                    if (!ok) throw std::runtime_error("Bytecode decode error");
+                }
+                
+                if (slot >= locals.size()) {
+                    throw LanguageException("RuntimeError", "Local slot out of bounds: " + std::to_string(slot));
+                }
+                
+                bc::BinaryOp bop = static_cast<bc::BinaryOp>(opByte);
+                Value right = pop();
+                Value left = pop();
+                Value result = applyBinary(left, right, bop);
+                locals[slot] = result;
+                
+                // Sync to variables
+                if (slot < fn.localNameStrings.size()) {
+                    runtime.setVariable(str(fn.localNameStrings[slot]), result);
+                }
+                break;
+            }
             }
         } catch (const LanguageException& ex) {
             // Uncaught from a callee (lambda/method/constructor): try to handle here.

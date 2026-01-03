@@ -90,6 +90,36 @@ enum class OpCode : uint8_t {
     // Expression literals (array/dict) that produce a value without binding to a variable
     MAKE_ARRAY_EXPR,  // u16 count (values on stack)
     MAKE_DICT_EXPR,   // u16 count, then count*u32 keyStringIndex (values on stack)
+
+    // ========================================================================
+    // Specialized opcodes for common patterns (performance optimization)
+    // These reduce instruction decode overhead and improve branch prediction
+    // ========================================================================
+    
+    // Fast literal pushes (no immediate operand needed)
+    PUSH_INT32_0,     // Push literal 0
+    PUSH_INT32_1,     // Push literal 1
+    PUSH_INT32_NEG1,  // Push literal -1
+    PUSH_TRUE,        // Push true
+    PUSH_FALSE,       // Push false
+    PUSH_NULL,        // Push empty string (null/none equivalent)
+    
+    // Fast slot operations for slot 0 (most common local)
+    LOAD_SLOT_0,      // Load slot 0
+    STORE_SLOT_0,     // Store to slot 0
+    
+    // Fast call variants (most common arities)
+    CALL_NAME_0,      // u32 nameStringIndex, 0 args
+    CALL_NAME_1,      // u32 nameStringIndex, 1 arg
+    CALL_NAME_2,      // u32 nameStringIndex, 2 args
+    
+    // Increment/decrement for counters (no stack, operates on slot directly)
+    INCREMENT_SLOT,   // u16 slotIndex (++slot)
+    DECREMENT_SLOT,   // u16 slotIndex (--slot)
+    
+    // Superinstructions: fused common sequences
+    LOAD_SLOT_PUSH_INT32,  // u16 slot, i32 value (load local, push constant)
+    BINARY_OP_STORE_SLOT,  // u8 op, u16 slot (binary op, store result to local)
 };
 
 enum class BinaryOp : uint8_t {
@@ -117,15 +147,14 @@ enum class UnaryOp : uint8_t {
 // misprediction costs. For hot-path instructions (PUSH_*, LOAD/STORE_VAR,
 // CALL_NAME, jumps), pre-decoding improves performance by 20-40% in tight loops.
 struct InstructionMeta {
-    uint32_t ip = 0;           // Instruction pointer (offset in code)
-    OpCode opcode = OpCode::NOP;
-    // Pre-decoded immediates (interpretation depends on opcode)
-    // For most instructions: imm0 = primary u32 operand (string index, function index, etc)
-    // imm1 = secondary operand (arg count, slot index, etc)
-    // For jumps: imm0 is jump target (absolute, pre-computed from relative)
-    uint32_t imm0 = 0;
-    uint32_t imm1 = 0;
+    uint32_t ip;                   // Instruction pointer (offset in code)
+    uint32_t imm0;                 // Pre-decoded primary immediate
+    uint32_t imm1;                 // Secondary operand
+    OpCode opcode;                 // Pre-decoded opcode (1 byte)
+    uint8_t flags;                 // Reserved for inline cache hints, type specialization
+    uint16_t _padding;             // Explicit padding for alignment
 };
+static_assert(sizeof(InstructionMeta) == 16, "InstructionMeta should be 16 bytes");
 
 struct Function {
     uint32_t nameString = kInvalidIndex; // optional

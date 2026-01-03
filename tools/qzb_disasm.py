@@ -47,7 +47,24 @@ OPCODES = [
     'STORE_SLOT',
     'MAKE_ARRAY_EXPR',
     'MAKE_DICT_EXPR',
+    # New specialized opcodes
+    'PUSH_INT32_0',
+    'PUSH_INT32_1',
+    'PUSH_INT32_NEG1',
+    'PUSH_TRUE',
+    'PUSH_FALSE',
+    'PUSH_NULL',
+    'LOAD_SLOT_0',
+    'STORE_SLOT_0',
+    'CALL_NAME_0',
+    'CALL_NAME_1',
+    'CALL_NAME_2',
+    'INCREMENT_SLOT',
+    'DECREMENT_SLOT',
+    'LOAD_SLOT_PUSH_INT32',
+    'BINARY_OP_STORE_SLOT',
 ]
+
 
 
 @dataclass
@@ -350,6 +367,26 @@ def disassemble_function(fn: dict, strings: list[str]) -> list[str]:
                 extra, o = disasm_def_class(code, o, strings)
             elif opname == 'DEF_INTERFACE':
                 extra, o = disasm_def_interface(code, o, strings)
+            # New specialized opcodes
+            elif opname in ('PUSH_INT32_0', 'PUSH_INT32_1', 'PUSH_INT32_NEG1', 
+                           'PUSH_TRUE', 'PUSH_FALSE', 'PUSH_NULL', 
+                           'LOAD_SLOT_0', 'STORE_SLOT_0'):
+                # No operands
+                pass
+            elif opname in ('CALL_NAME_0', 'CALL_NAME_1', 'CALL_NAME_2'):
+                name, o = read_u32(code, o)
+                extra = f'{sidx_to_str(strings, name)}'
+            elif opname in ('INCREMENT_SLOT', 'DECREMENT_SLOT'):
+                slot, o = read_u16(code, o)
+                extra = f'slot={slot}'
+            elif opname == 'LOAD_SLOT_PUSH_INT32':
+                slot, o = read_u16(code, o)
+                v, o = read_i32(code, o)
+                extra = f'slot={slot} value={v}'
+            elif opname == 'BINARY_OP_STORE_SLOT':
+                bop, o = read_u8(code, o)
+                slot, o = read_u16(code, o)
+                extra = f'op={bop} slot={slot}'
         except Exception as e:
             extra = f'<<decode error: {e}>>'
             # bail to avoid infinite loop

@@ -156,7 +156,7 @@ static bool extractInstructionMetadata(Function* fn, std::string* error) {
         
         // Read opcode
         uint8_t opByte = code[ip++];
-        if (opByte >= static_cast<uint8_t>(OpCode::MAKE_DICT_EXPR) + 1) {
+        if (opByte >= static_cast<uint8_t>(OpCode::BINARY_OP_STORE_SLOT) + 1) {
             if (error) *error = "Invalid opcode: " + std::to_string(opByte);
             return false;
         }
@@ -274,10 +274,11 @@ static bool extractInstructionMetadata(Function* fn, std::string* error) {
                 break;
             }
             
-            case OpCode::DECLARE_LAMBDA:
+            case OpCode::DECLARE_LAMBDA: {
                 // u32 name, u32 function index
                 ok = readU32Safe(&meta.imm0) && readU32Safe(&meta.imm1);
                 break;
+            }
                 
             case OpCode::BINARY_OP:
             case OpCode::UNARY_OP: {
@@ -329,6 +330,57 @@ static bool extractInstructionMetadata(Function* fn, std::string* error) {
                     meta.imm0 = catchIp;
                     meta.imm1 = finallyIp;
                 }
+                break;
+            }
+            
+            // ========================================================================
+            // Specialized opcodes (no operands or optimized operands)
+            // ========================================================================
+            case OpCode::PUSH_INT32_0:
+            case OpCode::PUSH_INT32_1:
+            case OpCode::PUSH_INT32_NEG1:
+            case OpCode::PUSH_TRUE:
+            case OpCode::PUSH_FALSE:
+            case OpCode::PUSH_NULL:
+            case OpCode::LOAD_SLOT_0:
+            case OpCode::STORE_SLOT_0:
+                // No operands needed
+                break;
+                
+            case OpCode::CALL_NAME_0:
+            case OpCode::CALL_NAME_1:
+            case OpCode::CALL_NAME_2: {
+                // u32 name only (arg count is implicit)
+                ok = readU32Safe(&meta.imm0);
+                break;
+            }
+            
+            case OpCode::INCREMENT_SLOT:
+            case OpCode::DECREMENT_SLOT: {
+                // u16 slot index
+                uint16_t slot;
+                ok = readU16Safe(&slot);
+                meta.imm0 = slot;
+                break;
+            }
+            
+            case OpCode::LOAD_SLOT_PUSH_INT32: {
+                // u16 slot, i32 value
+                uint16_t slot;
+                int32_t value;
+                ok = readU16Safe(&slot) && readI32Safe(&value);
+                meta.imm0 = static_cast<uint32_t>(value);
+                meta.imm1 = slot;
+                break;
+            }
+            
+            case OpCode::BINARY_OP_STORE_SLOT: {
+                // u8 op, u16 slot
+                uint8_t op;
+                uint16_t slot;
+                ok = readU8Safe(&op) && readU16Safe(&slot);
+                meta.imm0 = op;
+                meta.imm1 = slot;
                 break;
             }
             

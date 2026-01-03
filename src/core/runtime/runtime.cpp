@@ -20,6 +20,7 @@
 #include <chrono>
 #include <charconv>
 #include <cmath>
+#include <cstring>
 
 #if defined(__APPLE__)
 #include <mach-o/dyld.h>
@@ -191,41 +192,150 @@ Runtime::~Runtime() {
     }
 }
 
+// ============================================================================
+// ARC-Managed Array Accessors
+// ============================================================================
+
 std::vector<Value>* Runtime::getArray(const ArrayRef& ref) {
     if (ref.id >= arrayStorage.size()) return nullptr;
-    return &arrayStorage[ref.id];
+    auto& slot = arrayStorage[ref.id];
+    if (slot.refcount == 0) return nullptr;  // Slot is free
+    return &slot.data;
 }
 
 const std::vector<Value>* Runtime::getArray(const ArrayRef& ref) const {
     if (ref.id >= arrayStorage.size()) return nullptr;
-    return &arrayStorage[ref.id];
+    const auto& slot = arrayStorage[ref.id];
+    if (slot.refcount == 0) return nullptr;
+    return &slot.data;
 }
 
 std::unordered_map<std::string, Value>* Runtime::getDict(const DictRef& ref) {
     if (ref.id >= dictStorage.size()) return nullptr;
-    return &dictStorage[ref.id];
+    auto& slot = dictStorage[ref.id];
+    if (slot.refcount == 0) return nullptr;
+    return &slot.data;
 }
 
 const std::unordered_map<std::string, Value>* Runtime::getDict(const DictRef& ref) const {
     if (ref.id >= dictStorage.size()) return nullptr;
-    return &dictStorage[ref.id];
+    const auto& slot = dictStorage[ref.id];
+    if (slot.refcount == 0) return nullptr;
+    return &slot.data;
 }
 
-Value Runtime::makeArray(std::vector<Value> elements) {
-    size_t arrayId = nextArrayId++;
-    if (arrayId >= arrayStorage.size()) {
-        arrayStorage.resize(arrayId + 1);
+// ============================================================================
+// ARC Reference Counting Implementation
+// ============================================================================
+
+void Runtime::retainArray(size_t id) {
+    if (id < arrayStorage.size() && arrayStorage[id].refcount > 0) {
+        ++arrayStorage[id].refcount;
     }
-    arrayStorage[arrayId] = std::move(elements);
+}
+
+void Runtime::releaseArray(size_t id) {
+    if (id >= arrayStorage.size()) return;
+    auto& slot = arrayStorage[id];
+    if (slot.refcount == 0) return;  // Already free
+    
+    if (--slot.refcount == 0) {
+        // Return slot to free list; clear data to release memory
+        slot.data.clear();
+        slot.data.shrink_to_fit();
+        arrayFreeList.push_back(id);
+    }
+}
+
+void Runtime::retainDict(size_t id) {
+    if (id < dictStorage.size() && dictStorage[id].refcount > 0) {
+        ++dictStorage[id].refcount;
+    }
+}
+
+void Runtime::releaseDict(size_t id) {
+    if (id >= dictStorage.size()) return;
+    auto& slot = dictStorage[id];
+    if (slot.refcount == 0) return;
+    
+    if (--slot.refcount == 0) {
+        slot.data.clear();
+        dictFreeList.push_back(id);
+    }
+}
+
+uint32_t Runtime::arrayRefCount(size_t id) const {
+    if (id >= arrayStorage.size()) return 0;
+    return arrayStorage[id].refcount;
+}
+
+uint32_t Runtime::dictRefCount(size_t id) const {
+    if (id >= dictStorage.size()) return 0;
+    return dictStorage[id].refcount;
+}
+
+// ============================================================================
+// ARC Scope Management
+// ============================================================================
+// These helpers properly manage reference counts when switching variable scopes
+// (e.g., during lambda invocation or method calls)
+
+void Runtime::retainScope(const std::unordered_map<std::string, Value>& scope) {
+    for (const auto& pair : scope) {
+        retainValue(pair.second);
+    }
+}
+
+void Runtime::releaseScope(const std::unordered_map<std::string, Value>& scope) {
+    for (const auto& pair : scope) {
+        releaseValue(pair.second);
+    }
+}
+
+void Runtime::pushScope(const std::unordered_map<std::string, Value>& newVars) {
+    // Release current scope, then set new scope and retain it
+    releaseScope(variables);
+    variables = newVars;
+    retainScope(variables);
+}
+
+void Runtime::popScope(const std::unordered_map<std::string, Value>& savedVars) {
+    // Release current scope, then restore saved scope (already retained)
+    releaseScope(variables);
+    variables = savedVars;
+}
+
+// ============================================================================
+// ARC-Managed Allocation (with free-list reuse)
+// ============================================================================
+
+Value Runtime::makeArray(std::vector<Value> elements) {
+    size_t arrayId;
+    if (!arrayFreeList.empty()) {
+        // Reuse a free slot (ARC optimization)
+        arrayId = arrayFreeList.back();
+        arrayFreeList.pop_back();
+        arrayStorage[arrayId].data = std::move(elements);
+        arrayStorage[arrayId].refcount = 1;
+    } else {
+        // Allocate new slot
+        arrayId = arrayStorage.size();
+        arrayStorage.push_back(ArraySlot{std::move(elements), 1});
+    }
     return Value(ArrayRef{arrayId});
 }
 
 Value Runtime::makeDict(std::unordered_map<std::string, Value> entries) {
-    size_t dictId = nextDictId++;
-    if (dictId >= dictStorage.size()) {
-        dictStorage.resize(dictId + 1);
+    size_t dictId;
+    if (!dictFreeList.empty()) {
+        dictId = dictFreeList.back();
+        dictFreeList.pop_back();
+        dictStorage[dictId].data = std::move(entries);
+        dictStorage[dictId].refcount = 1;
+    } else {
+        dictId = dictStorage.size();
+        dictStorage.push_back(DictSlot{std::move(entries), 1});
     }
-    dictStorage[dictId] = std::move(entries);
     return Value(DictRef{dictId});
 }
 
@@ -544,7 +654,9 @@ static inline void appendFormatted(std::string& out, const Runtime* rt, const Va
 
 std::string Runtime::formatArrayById(size_t arrayId, bool quoteStrings) const {
     if (arrayId >= arrayStorage.size()) return "[]";
-    const auto& vec = arrayStorage[arrayId];
+    const auto& slot = arrayStorage[arrayId];
+    if (slot.refcount == 0) return "[]";  // Slot is free
+    const auto& vec = slot.data;
     std::string out;
     out.reserve(2 + vec.size() * 8);
     out += "[";
@@ -558,7 +670,9 @@ std::string Runtime::formatArrayById(size_t arrayId, bool quoteStrings) const {
 
 std::string Runtime::formatDictById(size_t dictId, bool quoteStrings) const {
     if (dictId >= dictStorage.size()) return "{}";
-    const auto& dict = dictStorage[dictId];
+    const auto& slot = dictStorage[dictId];
+    if (slot.refcount == 0) return "{}";
+    const auto& dict = slot.data;
     std::string out;
     out.reserve(2 + dict.size() * 16);
     out += "{";
@@ -600,6 +714,12 @@ void Runtime::setExternalLambdaInvoker(
 }
 
 void Runtime::setVariable(const std::string& name, const Value& val) {
+    // ARC: release old value if it exists, retain new value
+    auto it = variables.find(name);
+    if (it != variables.end()) {
+        releaseValue(it->second);  // Release old
+    }
+    retainValue(val);  // Retain new
     variables[name] = val;
 }
 
@@ -932,6 +1052,10 @@ bool Runtime::hasVariable(const std::string& name) const {
 }
 
 void Runtime::clearVariables() {
+    // ARC: release all values before clearing
+    for (const auto& pair : variables) {
+        releaseValue(pair.second);
+    }
     variables.clear();
     objects.clear();
 }

@@ -8,15 +8,31 @@
 #include <optional>
 #include <map>
 #include <stdexcept>
+#include <atomic>
+#include <cstdint>
+
+// ============================================================================
+// ARC-Style Reference Counting for Heap Objects
+// ============================================================================
+// Arrays and Dicts are stored in runtime pools with embedded reference counts.
+// When refcount drops to zero, the slot is returned to a free list for reuse.
+// This avoids monotonic ID growth and reduces allocation pressure.
 
 // Opaque handles for runtime-managed containers.
 // Arrays/Dicts live in Runtime storage; these values reference them by integer ID.
+// The runtime maintains refcounts internally; Value copy/assign adjusts counts.
 struct ArrayRef {
     size_t id;
+    
+    bool operator==(const ArrayRef& o) const { return id == o.id; }
+    bool operator!=(const ArrayRef& o) const { return id != o.id; }
 };
 
 struct DictRef {
     size_t id;
+    
+    bool operator==(const DictRef& o) const { return id == o.id; }
+    bool operator!=(const DictRef& o) const { return id != o.id; }
 };
 
 // TaskRef: handle to an async task (background work).

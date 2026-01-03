@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <charconv>
 #include <cmath>
+#include <cstring>
 
 namespace fs = std::filesystem;
 
@@ -114,22 +115,19 @@ void Runtime::executeNode(const ASTNodePtr& node) {
         
         // Check if the value is an array or dict
         if (node->children[0]->type == NodeType::Array) {
-            // Store the array with this variable name
+            // Store the array with this variable name using ARC allocation
             const auto& elements = node->children[0]->children;
             std::vector<Value> arrayVec;
             arrayVec.reserve(elements.size());
             for (const auto& elem : elements) {
                 arrayVec.push_back(evaluate(elem));
             }
-            size_t arrayId = nextArrayId++;
-            if (arrayId >= arrayStorage.size()) {
-                arrayStorage.resize(arrayId + 1);
-            }
+            Value arrVal = makeArray(std::move(arrayVec));
+            size_t arrayId = std::get<ArrayRef>(arrVal).id;
             varToArrayId[varName] = arrayId;
-            arrayStorage[arrayId] = std::move(arrayVec);
-            setVariable(varName, Value(ArrayRef{arrayId}));
+            setVariable(varName, arrVal);
         } else if (node->children[0]->type == NodeType::Dict) {
-            // Store the dict with this variable name
+            // Store the dict with this variable name using ARC allocation
             const auto& pairs = node->children[0]->children;
             std::unordered_map<std::string, Value> dictMap;
             dictMap.reserve(pairs.size());
@@ -138,13 +136,10 @@ void Runtime::executeNode(const ASTNodePtr& node) {
                     dictMap[pair->name] = evaluate(pair->children[0]);
                 }
             }
-            size_t dictId = nextDictId++;
-            if (dictId >= dictStorage.size()) {
-                dictStorage.resize(dictId + 1);
-            }
+            Value dictVal = makeDict(std::move(dictMap));
+            size_t dictId = std::get<DictRef>(dictVal).id;
             varToDictId[varName] = dictId;
-            dictStorage[dictId] = std::move(dictMap);
-            setVariable(varName, Value(DictRef{dictId}));
+            setVariable(varName, dictVal);
         } else if (node->children[0]->type == NodeType::Lambda) {
             // Lambda/closure assignment
             Value lambdaVal = evaluate(node->children[0]);

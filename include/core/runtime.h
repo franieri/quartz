@@ -297,11 +297,71 @@ public:
     // Set by the bytecode VM during execution so extensions can invoke bytecode lambdas.
     void setExternalLambdaInvoker(std::function<Value(const std::string& lambdaId, const std::vector<Value>& args)> invoker);
 
+    // ========================================================================
+    // ARC-Style Reference Counting API
+    // ========================================================================
+    // Increment/decrement reference counts for heap objects (arrays, dicts).
+    // These are called automatically by setVariable/clearVariables.
+    // When refcount drops to zero, the slot is recycled to a free list.
+    
+    void retainArray(size_t id);
+    void releaseArray(size_t id);
+    void retainDict(size_t id);
+    void releaseDict(size_t id);
+    
+    // Automatic ARC: retain/release any ArrayRef/DictRef inside a Value
+    // These are the core building blocks for automatic memory management
+    inline void retainValue(const Value& v) {
+        if (std::holds_alternative<ArrayRef>(v)) {
+            retainArray(std::get<ArrayRef>(v).id);
+        } else if (std::holds_alternative<DictRef>(v)) {
+            retainDict(std::get<DictRef>(v).id);
+        }
+    }
+    
+    inline void releaseValue(const Value& v) {
+        if (std::holds_alternative<ArrayRef>(v)) {
+            releaseArray(std::get<ArrayRef>(v).id);
+        } else if (std::holds_alternative<DictRef>(v)) {
+            releaseDict(std::get<DictRef>(v).id);
+        }
+    }
+    
+    // Get current refcount (for debugging/diagnostics)
+    uint32_t arrayRefCount(size_t id) const;
+    uint32_t dictRefCount(size_t id) const;
+    
+    // Pool statistics (for diagnostics)
+    size_t arrayPoolSize() const { return arrayStorage.size(); }
+    size_t arrayFreeCount() const { return arrayFreeList.size(); }
+    size_t dictPoolSize() const { return dictStorage.size(); }
+    size_t dictFreeCount() const { return dictFreeList.size(); }
+
 private:
     std::unordered_map<std::string, Value> variables;
     std::unordered_map<std::string, ObjectInstancePtr> objects;  // Store object instances
-    std::vector<std::vector<Value>> arrayStorage;  // Store actual arrays by integer ID
-    std::vector<std::unordered_map<std::string, Value>> dictStorage;  // Store actual dicts by integer ID
+    
+    // ========================================================================
+    // ARC-Managed Array Storage
+    // ========================================================================
+    // Each slot has: data vector + refcount. When refcount == 0, slot is free.
+    struct ArraySlot {
+        std::vector<Value> data;
+        uint32_t refcount = 0;  // 0 means slot is free/unallocated
+    };
+    std::vector<ArraySlot> arrayStorage;
+    std::vector<size_t> arrayFreeList;  // Stack of free slot IDs for reuse
+    
+    // ========================================================================
+    // ARC-Managed Dict Storage
+    // ========================================================================
+    struct DictSlot {
+        std::unordered_map<std::string, Value> data;
+        uint32_t refcount = 0;
+    };
+    std::vector<DictSlot> dictStorage;
+    std::vector<size_t> dictFreeList;
+    
     std::unordered_map<std::string, std::vector<uint8_t>> bufferStorage;  // Store byte buffers
     mutable std::mutex bufferStorageMtx;  // Protects bufferStorage map and nextBufferId
     std::unordered_map<std::string, size_t> varToArrayId;  // Map variable name to array ID
@@ -313,8 +373,6 @@ private:
     bool shouldContinue = false;  // For continue statement
     bool shouldReturn = false;    // For return statement inside nested blocks
     Value pendingReturnValue;     // Value to return when shouldReturn is set
-    size_t nextArrayId = 0;  // Counter for unique array IDs
-    size_t nextDictId = 0;   // Counter for unique dict IDs
     size_t nextLambdaId = 0; // Counter for unique lambda IDs
     std::atomic<size_t> nextBufferId{0}; // Counter for unique buffer IDs (atomic for thread safety)
     
@@ -381,6 +439,13 @@ private:
     Value applyBinaryOp(const Value& left, const Value& right, const std::string& op);
     Value executeMethodBody(const ASTNodePtr& body);  // Execute method body and return value
     Value invokeLambda(const std::string& lambdaId, const std::vector<Value>& args);  // Call a lambda
+    
+    // ARC-aware scope management (used internally for lambda/method calls)
+    // These properly retain/release values when switching variable scopes
+    void pushScope(const std::unordered_map<std::string, Value>& newVars);
+    void popScope(const std::unordered_map<std::string, Value>& savedVars);
+    void retainScope(const std::unordered_map<std::string, Value>& scope);
+    void releaseScope(const std::unordered_map<std::string, Value>& scope);
     
     // Module loading
     bool loadModule(const std::string& modulePath);  // Load a file-based module

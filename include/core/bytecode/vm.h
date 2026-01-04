@@ -61,6 +61,17 @@ private:
     std::string currentLoadingModule;
     uint32_t nextLambdaId = 0;
 
+    // ========================================================================
+    // Container Cache for Fast Index Operations
+    // ========================================================================
+    // Caches resolved varName -> (kind, id) to avoid repeated string hashing
+    // in tight loops. Cleared at function entry.
+    struct ContainerCacheEntry {
+        enum Kind : uint8_t { None = 0, Array = 1, Dict = 2 } kind = None;
+        size_t id = 0;
+    };
+    std::unordered_map<uint32_t, ContainerCacheEntry> indexContainerCache;
+
     // Execution
     Value runFunction(uint32_t functionIndex, const std::vector<Value>& args,
                       const std::unordered_map<std::string, Value>* overrideVars,
@@ -75,6 +86,7 @@ private:
     Value callName(const std::string& name, const std::vector<Value>& args, std::string* error);
     Value newObject(const std::string& fullClassName, const std::vector<Value>& args, std::string* error);
     Value indexGet(const std::string& varName, const Value& indexValue);
+    Value indexGet(uint32_t varNameStringIndex, const Value& indexValue);  // Fast path with caching
 
     // Import/module execution
     bool execImportString(const std::string& importStr, std::string* error);

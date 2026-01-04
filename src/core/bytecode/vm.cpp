@@ -4,6 +4,8 @@
 #include "logger.h"
 
 #include <cstring>
+#include <charconv>
+#include <cmath>
 
 // ============================================================================
 // VM Configuration Constants - Tunable for performance
@@ -23,13 +25,41 @@ namespace vm_config {
 }
 // ============================================================================
 
+// Fast, predictable double formatting (no locale, no allocations, compact output)
+static inline void appendDoubleFast(std::string& out, double v) {
+    if (std::isnan(v)) { out += "nan"; return; }
+    if (std::isinf(v)) { out += (v < 0) ? "-inf" : "inf"; return; }
+
+    char buf[64];
+    auto res = std::to_chars(std::begin(buf), std::end(buf), v, std::chars_format::general);
+    if (res.ec != std::errc{}) {
+        out += std::to_string(v);  // Fallback
+        return;
+    }
+
+    char* begin = buf;
+    char* end = res.ptr;
+    char* ePos = static_cast<char*>(memchr(begin, 'e', end - begin));
+    if (!ePos) ePos = static_cast<char*>(memchr(begin, 'E', end - begin));
+    char* dotPos = static_cast<char*>(memchr(begin, '.', (ePos ? (ePos - begin) : (end - begin))));
+    if (dotPos) {
+        char* trimEnd = ePos ? ePos : end;
+        while (trimEnd > dotPos + 1 && *(trimEnd - 1) == '0') --trimEnd;
+        if (trimEnd > dotPos && *(trimEnd - 1) == '.') --trimEnd;
+        out.append(begin, trimEnd - begin);
+        if (ePos) out.append(ePos, end - ePos);
+        return;
+    }
+    out.append(begin, end - begin);
+}
+
 static inline void appendValueRepr(std::string& out, const Value& val) {
     std::visit([&out](auto&& arg) {
         using T = std::decay_t<decltype(arg)>;
         if constexpr (std::is_same_v<T, int>) {
             out += std::to_string(arg);
         } else if constexpr (std::is_same_v<T, double>) {
-            out += std::to_string(arg);
+            appendDoubleFast(out, arg);
         } else if constexpr (std::is_same_v<T, std::string>) {
             out += '"';
             out += arg;
@@ -46,7 +76,7 @@ static inline void appendValueToStringVM(std::string& out, const Value& val, boo
         if constexpr (std::is_same_v<T, int>) {
             out += std::to_string(arg);
         } else if constexpr (std::is_same_v<T, double>) {
-            out += std::to_string(arg);
+            appendDoubleFast(out, arg);
         } else if constexpr (std::is_same_v<T, std::string>) {
             if (quoteStrings) {
                 out += '"';
@@ -273,33 +303,94 @@ Value BytecodeVM::applyUnary(const Value& operand, bc::UnaryOp op) const {
 }
 
 Value BytecodeVM::indexGet(const std::string& varName, const Value& indexValue) {
-    // Mirror Runtime::evaluate(Index) limited semantics
-    // Array
-    auto aIt = runtime.varToArrayId.find(varName);
-    if (aIt != runtime.varToArrayId.end() && std::holds_alternative<int>(indexValue)) {
-        int idx = std::get<int>(indexValue);
-        size_t id = aIt->second;
-        if (id < runtime.arrayStorage.size() && runtime.arrayStorage[id].refcount > 0) {
-            auto& vec = runtime.arrayStorage[id].data;
-            if (idx < 0 || idx >= (int)vec.size()) {
-                throw LanguageException("IndexError", "Array index out of bounds: " + std::to_string(idx) + " (size: " + std::to_string(vec.size()) + ")");
+    // Optimized array access path
+    if (std::holds_alternative<int>(indexValue)) {
+        auto aIt = runtime.varToArrayId.find(varName);
+        if (aIt != runtime.varToArrayId.end()) {
+            const int idx = std::get<int>(indexValue);
+            if (idx < 0) {
+                throw LanguageException("IndexError", "Array index cannot be negative: " + std::to_string(idx));
             }
-            return vec[idx];
+            const Value* val = runtime.arrayAt(aIt->second, static_cast<size_t>(idx));
+            if (val) return *val;
+            // Check if it's a bounds error vs invalid array
+            size_t sz = runtime.arraySize(aIt->second);
+            if (sz > 0) {
+                throw LanguageException("IndexError", "Array index out of bounds: " + std::to_string(idx) + " (size: " + std::to_string(sz) + ")");
+            }
+        }
+    }
+    // Optimized dict access path
+    else if (std::holds_alternative<std::string>(indexValue)) {
+        auto dIt = runtime.varToDictId.find(varName);
+        if (dIt != runtime.varToDictId.end()) {
+            const std::string& key = std::get<std::string>(indexValue);
+            const Value* val = runtime.dictAt(dIt->second, key);
+            if (val) return *val;
+            // Check if it's a key error vs invalid dict
+            if (runtime.dictSize(dIt->second) > 0 || runtime.dictData(dIt->second)) {
+                throw LanguageException("KeyError", "Dictionary key not found: '" + key + "'");
+            }
         }
     }
 
-    auto dIt = runtime.varToDictId.find(varName);
-    if (dIt != runtime.varToDictId.end() && std::holds_alternative<std::string>(indexValue)) {
-        const std::string& key = std::get<std::string>(indexValue);
-        size_t id = dIt->second;
-        if (id < runtime.dictStorage.size() && runtime.dictStorage[id].refcount > 0) {
-            auto& dict = runtime.dictStorage[id].data;
-            auto kIt = dict.find(key);
-            if (kIt != dict.end()) return kIt->second;
-            throw LanguageException("KeyError", "Dictionary key not found: '" + key + "'");
-        }
-    }
+    return Value{};
+}
 
+// Fast-path indexGet using string index for cache lookup (avoids varName hashing per access)
+Value BytecodeVM::indexGet(uint32_t varNameStringIndex, const Value& indexValue) {
+    // Look up in container cache first (fast path)
+    auto cacheIt = indexContainerCache.find(varNameStringIndex);
+    
+    if (cacheIt == indexContainerCache.end()) {
+        // Cache miss - resolve container and cache it
+        ContainerCacheEntry entry;
+        const std::string& varName = str(varNameStringIndex);
+        
+        auto aIt = runtime.varToArrayId.find(varName);
+        if (aIt != runtime.varToArrayId.end()) {
+            entry.kind = ContainerCacheEntry::Array;
+            entry.id = aIt->second;
+        } else {
+            auto dIt = runtime.varToDictId.find(varName);
+            if (dIt != runtime.varToDictId.end()) {
+                entry.kind = ContainerCacheEntry::Dict;
+                entry.id = dIt->second;
+            }
+        }
+        cacheIt = indexContainerCache.emplace(varNameStringIndex, entry).first;
+    }
+    
+    const ContainerCacheEntry& entry = cacheIt->second;
+    
+    // Fast array access
+    if (entry.kind == ContainerCacheEntry::Array) {
+        if (const int* idx = std::get_if<int>(&indexValue)) {
+            if (*idx < 0) {
+                throw LanguageException("IndexError", "Array index cannot be negative: " + std::to_string(*idx));
+            }
+            const Value* val = runtime.arrayAt(entry.id, static_cast<size_t>(*idx));
+            if (val) return *val;
+            size_t sz = runtime.arraySize(entry.id);
+            if (sz > 0) {
+                throw LanguageException("IndexError", "Array index out of bounds: " + std::to_string(*idx) + " (size: " + std::to_string(sz) + ")");
+            }
+        }
+        return Value{};
+    }
+    
+    // Fast dict access
+    if (entry.kind == ContainerCacheEntry::Dict) {
+        if (const std::string* key = std::get_if<std::string>(&indexValue)) {
+            const Value* val = runtime.dictAt(entry.id, *key);
+            if (val) return *val;
+            if (runtime.dictData(entry.id)) {
+                throw LanguageException("KeyError", "Dictionary key not found: '" + *key + "'");
+            }
+        }
+        return Value{};
+    }
+    
     return Value{};
 }
 
@@ -715,6 +806,21 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
     // Check if we have pre-decoded metadata available
     const bool useCachedMetadata = fn.hasCachedMetadata && !fn.instructionCache.empty();
 
+    // Build direct-indexed metadata lookup table for O(1) access
+    // Instead of linear search per instruction, we index by IP directly
+    std::vector<const bc::InstructionMeta*> metaByIp;
+    if (useCachedMetadata) {
+        metaByIp.resize(code.size(), nullptr);
+        for (const auto& m : fn.instructionCache) {
+            if (m.ip < metaByIp.size()) {
+                metaByIp[m.ip] = &m;
+            }
+        }
+    }
+
+    // Clear container cache at function entry (containers may have changed)
+    indexContainerCache.clear();
+
     // ARC: Save/override variable scope for calls (mirrors interpreter behavior)
     auto savedVars = runtime.variables;
     runtime.retainScope(savedVars);
@@ -745,6 +851,20 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
     // Pre-reserve stack to avoid frequent reallocations in hot loops
     std::vector<Value> stack;
     stack.reserve(vm_config::kDefaultStackReserve);
+
+    // Dirty flag: tracks if locals have been modified since last sync
+    // This allows lazy sync only when needed (e.g., before lambda capture)
+    bool localsDirty = false;
+
+    // Sync locals to runtime.variables - only called before lambda capture
+    // This is lazy: we only sync when actually needed instead of every STORE_SLOT
+    auto syncLocalsToVariables = [&]() {
+        if (!localsDirty) return;
+        for (size_t i = 0; i < locals.size() && i < fn.localNameStrings.size(); ++i) {
+            runtime.setVariable(str(fn.localNameStrings[i]), locals[i]);
+        }
+        localsDirty = false;
+    };
 
     struct TryFrame {
         size_t catchIp = 0;
@@ -838,27 +958,12 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
         // ====================================================================
         // Optimized Instruction Decoding Path
         // ====================================================================
-        // If metadata cache is available, lookup pre-decoded instruction data
-        // to avoid repeated readU32/readI32 calls. This significantly improves
-        // performance for hot-path instructions in tight loops.
-        //
-        // The metadata cache is populated during bytecode loading (see
-        // extractInstructionMetadata in bytecode.cpp) and contains pre-decoded
-        // immediates and pre-computed jump targets.
-        //
-        // For instructions without cached metadata, we fall back to the
-        // traditional runtime decoding path (calling readU32, readI32, etc).
+        // Direct-indexed metadata lookup: O(1) instead of O(n) linear search
+        // The metaByIp table is built at function entry for fast access.
         // ====================================================================
         const bc::InstructionMeta* meta = nullptr;
-        if (useCachedMetadata) {
-            // Linear lookup is acceptable for small functions (typical case)
-            // For very large functions, binary search could be beneficial
-            for (const auto& m : fn.instructionCache) {
-                if (m.ip == instructionStart) {
-                    meta = &m;
-                    break;
-                }
-            }
+        if (useCachedMetadata && instructionStart < metaByIp.size()) {
+            meta = metaByIp[instructionStart];
         }
 
         try {
@@ -995,14 +1100,15 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
                     if (!ok) throw std::runtime_error("Bytecode decode error");
                 }
                 Value v = pop();
-                if (slot >= locals.size()) {
+                if (VM_UNLIKELY(slot >= locals.size())) {
                     throw LanguageException("RuntimeError", "Local slot index out of bounds: " + std::to_string(slot));
                 }
-                locals[slot] = v;
-                // Keep runtime.variables in sync for features that still consult it
-                if (slot < fn.localNameStrings.size()) {
-                    runtime.setVariable(str(fn.localNameStrings[slot]), v);
-                }
+                // Inline ARC: release old, retain new (only for containers)
+                Value& oldVal = locals[slot];
+                runtime.releaseValue(oldVal);
+                runtime.retainValue(v);
+                oldVal = std::move(v);
+                localsDirty = true;  // Mark for lazy sync before lambda capture
                 break;
             }
 
@@ -1089,6 +1195,9 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
                 uint32_t fidx = readU32(code, ip, &ok);
                 if (!ok) throw std::runtime_error("Bytecode decode error");
 
+                // Sync locals to runtime.variables before capturing
+                syncLocalsToVariables();
+
                 std::string lambdaId = "__lambda_" + std::to_string(nextLambdaId++);
                 BCLambda l;
                 l.functionIndex = fidx;
@@ -1104,6 +1213,10 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
             case bc::OpCode::MAKE_LAMBDA: {
                 uint32_t fidx = readU32(code, ip, &ok);
                 if (!ok) throw std::runtime_error("Bytecode decode error");
+                
+                // Sync locals to runtime.variables before capturing
+                syncLocalsToVariables();
+                
                 std::string lambdaId = "__lambda_" + std::to_string(nextLambdaId++);
                 BCLambda l;
                 l.functionIndex = fidx;
@@ -1134,7 +1247,8 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
                 uint32_t nidx = readU32(code, ip, &ok);
                 if (!ok) throw std::runtime_error("Bytecode decode error");
                 Value idxV = pop();
-                push(indexGet(str(nidx), idxV));
+                // Use cached indexGet for fast repeated access (avoids string hashing)
+                push(indexGet(nidx, idxV));
                 break;
             }
 
@@ -1371,22 +1485,23 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
                 break;
                 
             case bc::OpCode::LOAD_SLOT_0:
-                if (locals.empty()) {
+                if (VM_UNLIKELY(locals.empty())) {
                     throw LanguageException("RuntimeError", "Local slot 0 out of bounds");
                 }
                 push(locals[0]);
                 break;
                 
             case bc::OpCode::STORE_SLOT_0: {
-                if (locals.empty()) {
+                if (VM_UNLIKELY(locals.empty())) {
                     throw LanguageException("RuntimeError", "Local slot 0 out of bounds");
                 }
                 Value v = pop();
-                locals[0] = v;
-                // Keep runtime.variables in sync
-                if (!fn.localNameStrings.empty()) {
-                    runtime.setVariable(str(fn.localNameStrings[0]), v);
-                }
+                // Inline ARC: release old, retain new
+                Value& oldVal = locals[0];
+                runtime.releaseValue(oldVal);
+                runtime.retainValue(v);
+                oldVal = std::move(v);
+                localsDirty = true;
                 break;
             }
             

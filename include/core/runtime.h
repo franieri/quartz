@@ -311,18 +311,25 @@ public:
     
     // Automatic ARC: retain/release any ArrayRef/DictRef inside a Value
     // These are the core building blocks for automatic memory management
+    // Optimized: check variant index directly to skip type checks for primitives
+    // Value = variant<int(0), double(1), string(2), bool(3), ArrayRef(4), DictRef(5), TaskRef(6), BufferRef(7)>
     inline void retainValue(const Value& v) {
-        if (std::holds_alternative<ArrayRef>(v)) {
+        const auto idx = v.index();
+        if (idx < 4) return;  // int, double, string, bool - no ARC needed
+        if (idx == 4) {
             retainArray(std::get<ArrayRef>(v).id);
-        } else if (std::holds_alternative<DictRef>(v)) {
+        } else if (idx == 5) {
             retainDict(std::get<DictRef>(v).id);
         }
+        // TaskRef(6), BufferRef(7) - not managed by this ARC system
     }
     
     inline void releaseValue(const Value& v) {
-        if (std::holds_alternative<ArrayRef>(v)) {
+        const auto idx = v.index();
+        if (idx < 4) return;  // Fast path for primitives
+        if (idx == 4) {
             releaseArray(std::get<ArrayRef>(v).id);
-        } else if (std::holds_alternative<DictRef>(v)) {
+        } else if (idx == 5) {
             releaseDict(std::get<DictRef>(v).id);
         }
     }
@@ -362,6 +369,98 @@ private:
     std::vector<DictSlot> dictStorage;
     std::vector<size_t> dictFreeList;
     
+    // ========================================================================
+    // Fast-Path Inline Accessors (zero-overhead hot path)
+    // ========================================================================
+    // These bypass function call overhead for critical index operations.
+    // PRECONDITION: caller must ensure id < storage.size() for safety.
+    
+    // Fast array element access - returns nullptr if invalid
+    inline Value* arrayAt(size_t id, size_t index) noexcept {
+        if (id >= arrayStorage.size()) return nullptr;
+        auto& slot = arrayStorage[id];
+        if (slot.refcount == 0 || index >= slot.data.size()) return nullptr;
+        return &slot.data[index];
+    }
+    
+    inline const Value* arrayAt(size_t id, size_t index) const noexcept {
+        if (id >= arrayStorage.size()) return nullptr;
+        const auto& slot = arrayStorage[id];
+        if (slot.refcount == 0 || index >= slot.data.size()) return nullptr;
+        return &slot.data[index];
+    }
+    
+    // Fast array data pointer - returns nullptr if invalid
+    inline std::vector<Value>* arrayData(size_t id) noexcept {
+        if (id >= arrayStorage.size()) return nullptr;
+        auto& slot = arrayStorage[id];
+        return slot.refcount > 0 ? &slot.data : nullptr;
+    }
+    
+    inline const std::vector<Value>* arrayData(size_t id) const noexcept {
+        if (id >= arrayStorage.size()) return nullptr;
+        const auto& slot = arrayStorage[id];
+        return slot.refcount > 0 ? &slot.data : nullptr;
+    }
+    
+    // Fast array size - returns 0 if invalid
+    inline size_t arraySize(size_t id) const noexcept {
+        if (id >= arrayStorage.size()) return 0;
+        const auto& slot = arrayStorage[id];
+        return slot.refcount > 0 ? slot.data.size() : 0;
+    }
+    
+    // Fast dict lookup - returns nullptr if key not found or invalid
+    inline Value* dictAt(size_t id, const std::string& key) noexcept {
+        if (id >= dictStorage.size()) return nullptr;
+        auto& slot = dictStorage[id];
+        if (slot.refcount == 0) return nullptr;
+        auto it = slot.data.find(key);
+        return it != slot.data.end() ? &it->second : nullptr;
+    }
+    
+    inline const Value* dictAt(size_t id, const std::string& key) const noexcept {
+        if (id >= dictStorage.size()) return nullptr;
+        const auto& slot = dictStorage[id];
+        if (slot.refcount == 0) return nullptr;
+        auto it = slot.data.find(key);
+        return it != slot.data.end() ? &it->second : nullptr;
+    }
+    
+    // Fast dict data pointer - returns nullptr if invalid
+    inline std::unordered_map<std::string, Value>* dictData(size_t id) noexcept {
+        if (id >= dictStorage.size()) return nullptr;
+        auto& slot = dictStorage[id];
+        return slot.refcount > 0 ? &slot.data : nullptr;
+    }
+    
+    inline const std::unordered_map<std::string, Value>* dictData(size_t id) const noexcept {
+        if (id >= dictStorage.size()) return nullptr;
+        const auto& slot = dictStorage[id];
+        return slot.refcount > 0 ? &slot.data : nullptr;
+    }
+    
+    // Fast dict size - returns 0 if invalid
+    inline size_t dictSize(size_t id) const noexcept {
+        if (id >= dictStorage.size()) return 0;
+        const auto& slot = dictStorage[id];
+        return slot.refcount > 0 ? slot.data.size() : 0;
+    }
+    
+    // Unchecked accessors (caller guarantees validity) - maximum performance
+    inline std::vector<Value>& arrayDataUnchecked(size_t id) noexcept {
+        return arrayStorage[id].data;
+    }
+    inline const std::vector<Value>& arrayDataUnchecked(size_t id) const noexcept {
+        return arrayStorage[id].data;
+    }
+    inline std::unordered_map<std::string, Value>& dictDataUnchecked(size_t id) noexcept {
+        return dictStorage[id].data;
+    }
+    inline const std::unordered_map<std::string, Value>& dictDataUnchecked(size_t id) const noexcept {
+        return dictStorage[id].data;
+    }
+
     std::unordered_map<std::string, std::vector<uint8_t>> bufferStorage;  // Store byte buffers
     mutable std::mutex bufferStorageMtx;  // Protects bufferStorage map and nextBufferId
     std::unordered_map<std::string, size_t> varToArrayId;  // Map variable name to array ID

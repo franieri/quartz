@@ -585,6 +585,28 @@ void BytecodeCompiler::compileStatement(const ASTNodePtr& node, bc::Program& pro
                     }
                     // Could also handle x = x + (-1) as decrement, etc.
                 }
+                
+                // Pattern: x = x op expr -> BINARY_OP_STORE_SLOT
+                // This fuses: LOAD_SLOT + compile(expr) + BINARY_OP + STORE_SLOT
+                // into: LOAD_SLOT + compile(expr) + BINARY_OP_STORE_SLOT
+                // Maps binary op string to bc::BinaryOp
+                bc::BinaryOp bop;
+                bool canFuse = false;
+                if (op == "+") { bop = bc::BinaryOp::ADD; canFuse = true; }
+                else if (op == "-") { bop = bc::BinaryOp::SUB; canFuse = true; }
+                else if (op == "*") { bop = bc::BinaryOp::MUL; canFuse = true; }
+                else if (op == "/") { bop = bc::BinaryOp::DIV; canFuse = true; }
+                
+                if (canFuse) {
+                    // Emit: push(slot), push(expr), BINARY_OP_STORE_SLOT
+                    emitOp(fn, bc::OpCode::LOAD_SLOT);
+                    emitU16(fn, slot);
+                    compileExpression(rhsBin, program, fn, loopStack, error);
+                    emitOp(fn, bc::OpCode::BINARY_OP_STORE_SLOT);
+                    fn.code.push_back(static_cast<uint8_t>(bop));
+                    emitU16(fn, slot);
+                    return;
+                }
             }
         }
         
@@ -636,16 +658,56 @@ void BytecodeCompiler::compileStatement(const ASTNodePtr& node, bc::Program& pro
         ctx.loopStartIp = fn.code.size();
         loopStack.push_back(ctx);
 
-        compileExpression(node->children[0], program, fn, loopStack, error);
-        size_t jExit = emitJumpPlaceholder(fn, bc::OpCode::JUMP_IF_FALSE);
+        // Try to emit optimized loop condition for common pattern: slot < int_constant
+        ASTNodePtr cond = node->children[0];
+        bool usedLoopCond = false;
+        
+        if (cond->type == NodeType::Binary && cond->children.size() == 2) {
+            std::string op = std::get<std::string>(cond->value);
+            ASTNodePtr lhs = cond->children[0];
+            ASTNodePtr rhs = cond->children[1];
+            
+            // Check: identifier < int_literal
+            if (op == "<" && lhs->type == NodeType::Identifier &&
+                rhs->type == NodeType::Literal && std::holds_alternative<int>(rhs->value)) {
+                
+                std::string varName = std::get<std::string>(lhs->value);
+                uint16_t slot = 0;
+                if (tryGetLocalSlot(localsStack, varName, &slot)) {
+                    int32_t limit = std::get<int>(rhs->value);
+                    // Emit LOOP_COND_SLOT_LT_INT32: u16 slot, i32 limit, i32 relJump
+                    emitOp(fn, bc::OpCode::LOOP_COND_SLOT_LT_INT32);
+                    emitU16(fn, slot);
+                    emitI32(fn, limit);
+                    // Placeholder for relative jump (will be patched)
+                    size_t jExit = fn.code.size();
+                    emitI32(fn, 0);  // Placeholder
+                    usedLoopCond = true;
+                    
+                    compileStatement(node->children[1], program, fn, loopStack, error);
+                    // jump to start
+                    emitOp(fn, bc::OpCode::JUMP);
+                    emitI32(fn, (int32_t)loopStack.back().loopStartIp - (int32_t)(fn.code.size() + 4));
+                    
+                    // patch exit
+                    patchRelJump(fn, jExit, fn.code.size());
+                }
+            }
+        }
+        
+        if (!usedLoopCond) {
+            // Default path: compile condition as expression
+            compileExpression(cond, program, fn, loopStack, error);
+            size_t jExit = emitJumpPlaceholder(fn, bc::OpCode::JUMP_IF_FALSE);
 
-        compileStatement(node->children[1], program, fn, loopStack, error);
-        // jump to start
-        emitOp(fn, bc::OpCode::JUMP);
-        emitI32(fn, (int32_t)loopStack.back().loopStartIp - (int32_t)(fn.code.size() + 4));
+            compileStatement(node->children[1], program, fn, loopStack, error);
+            // jump to start
+            emitOp(fn, bc::OpCode::JUMP);
+            emitI32(fn, (int32_t)loopStack.back().loopStartIp - (int32_t)(fn.code.size() + 4));
 
-        // patch exit
-        patchRelJump(fn, jExit, fn.code.size());
+            // patch exit
+            patchRelJump(fn, jExit, fn.code.size());
+        }
 
         // patch breaks/continues
         auto finished = loopStack.back();

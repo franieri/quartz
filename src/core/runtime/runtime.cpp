@@ -110,6 +110,18 @@ void Runtime::execute(const AST& ast) {
 
 void Runtime::initialize() {
     global_runtime_ptr = this;
+    
+    // Pre-reserve storage vectors to reduce allocation pressure
+    // These are tuned for typical program sizes; they grow automatically if needed
+    constexpr size_t kInitialArrayCapacity = 64;
+    constexpr size_t kInitialDictCapacity = 32;
+    constexpr size_t kInitialFreeListCapacity = 16;
+    
+    arrayStorage.reserve(kInitialArrayCapacity);
+    dictStorage.reserve(kInitialDictCapacity);
+    arrayFreeList.reserve(kInitialFreeListCapacity);
+    dictFreeList.reserve(kInitialFreeListCapacity);
+    
     initThreadPool();
     initStandardLibrary();
 }
@@ -240,9 +252,12 @@ void Runtime::releaseArray(size_t id) {
     if (slot.refcount == 0) return;  // Already free
     
     if (--slot.refcount == 0) {
-        // Return slot to free list; clear data to release memory
+        // Return slot to free list; clear data but KEEP capacity for reuse (fast path).
+        // Only shrink pathologically large arrays to prevent memory bloat.
         slot.data.clear();
-        slot.data.shrink_to_fit();
+        if (slot.data.capacity() > 1024) {
+            std::vector<Value>().swap(slot.data);  // Force deallocation
+        }
         arrayFreeList.push_back(id);
     }
 }
@@ -259,7 +274,12 @@ void Runtime::releaseDict(size_t id) {
     if (slot.refcount == 0) return;
     
     if (--slot.refcount == 0) {
+        // Clear data but keep bucket structure for reuse (avoids rehashing on next use).
+        // Only deallocate pathologically large dicts.
         slot.data.clear();
+        if (slot.data.bucket_count() > 256) {
+            std::unordered_map<std::string, Value>().swap(slot.data);
+        }
         dictFreeList.push_back(id);
     }
 }
@@ -330,10 +350,17 @@ Value Runtime::makeDict(std::unordered_map<std::string, Value> entries) {
     if (!dictFreeList.empty()) {
         dictId = dictFreeList.back();
         dictFreeList.pop_back();
-        dictStorage[dictId].data = std::move(entries);
-        dictStorage[dictId].refcount = 1;
+        auto& slot = dictStorage[dictId];
+        // Reuse slot - if entries is larger, rehash will happen anyway
+        // If slot has adequate buckets, swap is faster than move
+        slot.data = std::move(entries);
+        slot.refcount = 1;
     } else {
         dictId = dictStorage.size();
+        // For new dicts, reserve minimum buckets to reduce rehashing
+        if (entries.empty()) {
+            entries.reserve(8);  // Reasonable default for small dicts
+        }
         dictStorage.push_back(DictSlot{std::move(entries), 1});
     }
     return Value(DictRef{dictId});

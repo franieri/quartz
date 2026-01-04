@@ -553,9 +553,44 @@ void BytecodeCompiler::compileStatement(const ASTNodePtr& node, bc::Program& pro
 
     case NodeType::Assign: {
         std::string varName = std::get<std::string>(node->children[0]->value);
-        compileExpression(node->children[1], program, fn, loopStack, error);
+        ASTNodePtr rhs = node->children[1];
         uint16_t slot = 0;
-        if (tryGetLocalSlot(localsStack, varName, &slot)) {
+        bool hasSlot = tryGetLocalSlot(localsStack, varName, &slot);
+        
+        // Pattern: x = x + 1  or  x = x - 1  -> INCREMENT_SLOT / DECREMENT_SLOT
+        // This is a very common pattern in loops and greatly benefits from fusion
+        if (hasSlot && rhs->type == NodeType::Binary && rhs->children.size() == 2) {
+            std::string op = std::get<std::string>(rhs->value);
+            ASTNodePtr lhsBin = rhs->children[0];
+            ASTNodePtr rhsBin = rhs->children[1];
+            
+            // Check if lhs is the same variable we're assigning to
+            if (lhsBin->type == NodeType::Identifier && 
+                std::get<std::string>(lhsBin->value) == varName) {
+                
+                // Check if rhs is literal 1 (or -1 for decrement)
+                if (rhsBin->type == NodeType::Literal && 
+                    std::holds_alternative<int>(rhsBin->value)) {
+                    int literal = std::get<int>(rhsBin->value);
+                    
+                    if (op == "+" && literal == 1) {
+                        emitOp(fn, bc::OpCode::INCREMENT_SLOT);
+                        emitU16(fn, slot);
+                        return;
+                    }
+                    if (op == "-" && literal == 1) {
+                        emitOp(fn, bc::OpCode::DECREMENT_SLOT);
+                        emitU16(fn, slot);
+                        return;
+                    }
+                    // Could also handle x = x + (-1) as decrement, etc.
+                }
+            }
+        }
+        
+        // Default path: compile RHS expression and store
+        compileExpression(rhs, program, fn, loopStack, error);
+        if (hasSlot) {
             emitOp(fn, bc::OpCode::STORE_SLOT);
             emitU16(fn, slot);
         } else {
@@ -1057,8 +1092,29 @@ void BytecodeCompiler::compileExpression(const ASTNodePtr& node, bc::Program& pr
     }
 
     case NodeType::Binary: {
-        compileExpression(node->children[0], program, fn, loopStack, error);
-        compileExpression(node->children[1], program, fn, loopStack, error);
+        ASTNodePtr lhs = node->children[0];
+        ASTNodePtr rhs = node->children[1];
+        
+        // Pattern: slot + int32 or slot < int32 etc -> LOAD_SLOT_PUSH_INT32 fusion
+        // This reduces instruction count and improves cache efficiency
+        uint16_t slot = 0;
+        if (lhs->type == NodeType::Identifier &&
+            rhs->type == NodeType::Literal && 
+            std::holds_alternative<int>(rhs->value) &&
+            tryGetLocalSlot(localsStack, std::get<std::string>(lhs->value), &slot)) {
+            
+            int32_t val = std::get<int>(rhs->value);
+            emitOp(fn, bc::OpCode::LOAD_SLOT_PUSH_INT32);
+            emitU16(fn, slot);
+            emitI32(fn, val);
+            emitOp(fn, bc::OpCode::BINARY_OP);
+            emitU8(fn, (uint8_t)mapBinaryOp(std::get<std::string>(node->value)));
+            return;
+        }
+        
+        // Default: compile both sides normally
+        compileExpression(lhs, program, fn, loopStack, error);
+        compileExpression(rhs, program, fn, loopStack, error);
         emitOp(fn, bc::OpCode::BINARY_OP);
         emitU8(fn, (uint8_t)mapBinaryOp(std::get<std::string>(node->value)));
         return;

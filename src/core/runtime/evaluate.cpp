@@ -160,30 +160,29 @@ Value Runtime::evaluate(const ASTNodePtr& node) {
     }
 
     case NodeType::Index: {
-        // Array/Dict indexing
+        // Optimized array/dict indexing
         ASTNodePtr containerNode = node->children[0];
         ASTNodePtr indexNode = node->children[1];
 
         Value containerVal = evaluate(containerNode);
         Value indexValue = evaluate(indexNode);
 
-        if (std::holds_alternative<ArrayRef>(containerVal) && std::holds_alternative<int>(indexValue)) {
-            size_t id = std::get<ArrayRef>(containerVal).id;
-            int idx = std::get<int>(indexValue);
-            if (id < arrayStorage.size() && arrayStorage[id].refcount > 0) {
-                auto& vec = arrayStorage[id].data;
-                if (idx >= 0 && idx < (int)vec.size()) return vec[(size_t)idx];
+        // Fast path: direct ArrayRef/DictRef access
+        if (std::holds_alternative<ArrayRef>(containerVal)) {
+            if (std::holds_alternative<int>(indexValue)) {
+                const int idx = std::get<int>(indexValue);
+                if (idx >= 0) {
+                    const Value* val = arrayAt(std::get<ArrayRef>(containerVal).id, static_cast<size_t>(idx));
+                    if (val) return *val;
+                }
             }
             return Value{};
         }
 
-        if (std::holds_alternative<DictRef>(containerVal) && std::holds_alternative<std::string>(indexValue)) {
-            size_t id = std::get<DictRef>(containerVal).id;
-            const std::string& key = std::get<std::string>(indexValue);
-            if (id < dictStorage.size() && dictStorage[id].refcount > 0) {
-                auto& dict = dictStorage[id].data;
-                auto kIt = dict.find(key);
-                if (kIt != dict.end()) return kIt->second;
+        if (std::holds_alternative<DictRef>(containerVal)) {
+            if (std::holds_alternative<std::string>(indexValue)) {
+                const Value* val = dictAt(std::get<DictRef>(containerVal).id, std::get<std::string>(indexValue));
+                if (val) return *val;
             }
             return Value{};
         }
@@ -191,23 +190,24 @@ Value Runtime::evaluate(const ASTNodePtr& node) {
         // Back-compat: identifier-based indexing using var->id mapping
         if (containerNode->type == NodeType::Identifier) {
             std::string varName = std::get<std::string>(containerNode->value);
-            auto aIt = varToArrayId.find(varName);
-            if (aIt != varToArrayId.end() && std::holds_alternative<int>(indexValue)) {
-                int idx = std::get<int>(indexValue);
-                size_t id = aIt->second;
-                if (id < arrayStorage.size() && arrayStorage[id].refcount > 0) {
-                    auto& vec = arrayStorage[id].data;
-                    if (idx >= 0 && idx < (int)vec.size()) return vec[(size_t)idx];
+            
+            // Array access
+            if (std::holds_alternative<int>(indexValue)) {
+                auto aIt = varToArrayId.find(varName);
+                if (aIt != varToArrayId.end()) {
+                    const int idx = std::get<int>(indexValue);
+                    if (idx >= 0) {
+                        const Value* val = arrayAt(aIt->second, static_cast<size_t>(idx));
+                        if (val) return *val;
+                    }
                 }
             }
-            auto dIt = varToDictId.find(varName);
-            if (dIt != varToDictId.end() && std::holds_alternative<std::string>(indexValue)) {
-                const std::string& key = std::get<std::string>(indexValue);
-                size_t id = dIt->second;
-                if (id < dictStorage.size() && dictStorage[id].refcount > 0) {
-                    auto& dict = dictStorage[id].data;
-                    auto kIt = dict.find(key);
-                    if (kIt != dict.end()) return kIt->second;
+            // Dict access
+            else if (std::holds_alternative<std::string>(indexValue)) {
+                auto dIt = varToDictId.find(varName);
+                if (dIt != varToDictId.end()) {
+                    const Value* val = dictAt(dIt->second, std::get<std::string>(indexValue));
+                    if (val) return *val;
                 }
             }
         }

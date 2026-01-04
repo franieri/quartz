@@ -53,3 +53,8 @@ test_results/
 local.conf
 private/
 vgcore.*
+
+# Benchmark results
+latest
+results.csv
+system_info.txt

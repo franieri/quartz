@@ -384,6 +384,27 @@ static bool extractInstructionMetadata(Function* fn, std::string* error) {
                 break;
             }
             
+            case OpCode::LOOP_COND_SLOT_LT_INT32: {
+                // u16 slot, i32 limit, i32 relJump
+                // Store: imm0 = absolute target, imm1 = limit, imm2 = slot
+                uint16_t slot;
+                int32_t limit;
+                int32_t relJump;
+                ok = readU16Safe(&slot) && readI32Safe(&limit) && readI32Safe(&relJump);
+                if (ok) {
+                    // Compute absolute target (ip now points after the instruction)
+                    int64_t target = static_cast<int64_t>(ip) + relJump;
+                    if (target < 0 || target > static_cast<int64_t>(code.size())) {
+                        ok = false;
+                    } else {
+                        meta.imm0 = static_cast<uint32_t>(target);  // Absolute jump target
+                        meta.imm1 = static_cast<uint32_t>(limit);   // Limit value
+                        meta.imm2 = slot;                           // Slot index
+                    }
+                }
+                break;
+            }
+            
             case OpCode::DEF_CLASS: {
                 // Complex structure - validate but don't fully cache
                 // u32 name, u32 parent, u32 ifaceCount, [ifaceCount * u32], 

@@ -120,6 +120,10 @@ enum class OpCode : uint8_t {
     // Superinstructions: fused common sequences
     LOAD_SLOT_PUSH_INT32,  // u16 slot, i32 value (load local, push constant)
     BINARY_OP_STORE_SLOT,  // u8 op, u16 slot (binary op, store result to local)
+    
+    // Super-instruction for loop condition: slot < constant ? continue : jump
+    // Fuses: LOAD_SLOT + PUSH_INT32 + BINARY_OP(LT) + JUMP_IF_FALSE
+    LOOP_COND_SLOT_LT_INT32,  // u16 slot, i32 limit, i32 rel (jump if slot >= limit)
 };
 
 enum class BinaryOp : uint8_t {
@@ -152,7 +156,7 @@ struct InstructionMeta {
     uint32_t imm1;                 // Secondary operand
     OpCode opcode;                 // Pre-decoded opcode (1 byte)
     uint8_t flags;                 // Reserved for inline cache hints, type specialization
-    uint16_t _padding;             // Explicit padding for alignment
+    uint16_t imm2;                 // Tertiary operand (for super-instructions with 3 operands)
 };
 static_assert(sizeof(InstructionMeta) == 16, "InstructionMeta should be 16 bytes");
 

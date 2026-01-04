@@ -103,7 +103,8 @@ private:
     int32_t readI32(const std::vector<uint8_t>& code, size_t& ip, bool* ok);
     double readF64(const std::vector<uint8_t>& code, size_t& ip, bool* ok);
 
-    std::string str(uint32_t stringIndex) const;
+    // Returns const ref to avoid string copy on every lookup
+    const std::string& str(uint32_t stringIndex) const;
 };
 
 #endif // QZ_BYTECODE_VM_H

@@ -2,10 +2,12 @@
 
 #include "function_registry.h"
 #include "logger.h"
+#include "vm_optimizations.h"
 
 #include <cstring>
 #include <charconv>
 #include <cmath>
+#include <unordered_set>
 
 // ============================================================================
 // VM Configuration Constants - Tunable for performance
@@ -151,8 +153,11 @@ double BytecodeVM::readF64(const std::vector<uint8_t>& code, size_t& ip, bool* o
     return d;
 }
 
-std::string BytecodeVM::str(uint32_t stringIndex) const {
-    if (VM_UNLIKELY(!prog || stringIndex == bc::kInvalidIndex || stringIndex >= prog->strings.size())) return "";
+// Empty string singleton for invalid lookups
+static const std::string kEmptyString;
+
+const std::string& BytecodeVM::str(uint32_t stringIndex) const {
+    if (VM_UNLIKELY(!prog || stringIndex == bc::kInvalidIndex || stringIndex >= prog->strings.size())) return kEmptyString;
     return prog->strings[stringIndex];
 }
 
@@ -838,19 +843,18 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
         runtime.setVariable(str(fn.paramNameStrings[i]), args[i]);
     }
 
-    // Slot locals (fast-path) - pre-reserve to avoid reallocations
-    std::vector<Value> locals;
+    // Slot locals (fast-path) - use SmallVector to avoid heap for small functions
+    // Most functions have < 64 locals, so inline storage avoids allocation
+    SmallVector<Value, 64> locals;
     const size_t localsSize = fn.localNameStrings.size();
-    locals.reserve(std::max(localsSize, vm_config::kDefaultLocalsReserve));
     locals.resize(localsSize);
     // Initialize param slots if present
     for (size_t i = 0; i < fn.paramNameStrings.size() && i < args.size(); ++i) {
         if (i < locals.size()) locals[i] = args[i];
     }
 
-    // Pre-reserve stack to avoid frequent reallocations in hot loops
-    std::vector<Value> stack;
-    stack.reserve(vm_config::kDefaultStackReserve);
+    // Stack - use SmallVector for small stack depths (most operations)
+    SmallVector<Value, 128> stack;
 
     // Dirty flag: tracks if locals have been modified since last sync
     // This allows lazy sync only when needed (e.g., before lambda capture)
@@ -876,6 +880,22 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
     std::vector<TryFrame> tryStack;
     tryStack.reserve(vm_config::kDefaultTryStackReserve);
 
+    // Deferred release queue for batch ARC operations
+    // Releases are batched and processed periodically or at scope exit
+    DeferredReleaseQueue<64> deferredReleases;
+    size_t releaseCounter = 0;
+    constexpr size_t kReleaseBatchSize = 256; // Flush every N store operations
+    
+    auto flushDeferredReleases = [&]() {
+        deferredReleases.flush([&](size_t id, bool isArray) {
+            if (isArray) {
+                runtime.releaseArray(id);
+            } else {
+                runtime.releaseDict(id);
+            }
+        });
+    };
+
     bool pendingRethrow = false;
     LanguageException pendingExc("Exception", "");
 
@@ -895,6 +915,7 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
 
     // ARC: Restore scope helper for exceptions
     auto restoreAndThrow = [&](const LanguageException& ex) -> void {
+        flushDeferredReleases();
         runtime.popScope(savedVars);
         runtime.currentThisObject = savedThis;
         throw ex;
@@ -943,17 +964,16 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
         }
     };
 
-    while (ip < code.size()) {
+    // Direct pointer access for code - faster than vector bounds checking
+    const uint8_t* codeData = code.data();
+    const size_t codeSize = code.size();
+
+    // Used for fallback bytecode reading when metadata not available
+    bool ok = true;
+
+    while (ip < codeSize) {
         const size_t instructionStart = ip;
-        bool ok = true;
-        bc::OpCode op = (bc::OpCode)readU8(code, ip, &ok);
-        if (!ok) {
-            if (error) *error = "Bytecode decode error";
-            // ARC: Restore scope on error
-            runtime.popScope(savedVars);
-            runtime.currentThisObject = savedThis;
-            return Value{};
-        }
+        bc::OpCode op = static_cast<bc::OpCode>(codeData[ip++]);
         
         // ====================================================================
         // Optimized Instruction Decoding Path
@@ -1103,12 +1123,23 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
                 if (VM_UNLIKELY(slot >= locals.size())) {
                     throw LanguageException("RuntimeError", "Local slot index out of bounds: " + std::to_string(slot));
                 }
-                // Inline ARC: release old, retain new (only for containers)
+                // Batch ARC: defer old value release, retain new (only for containers)
                 Value& oldVal = locals[slot];
-                runtime.releaseValue(oldVal);
+                const auto oldIdx = oldVal.index();
+                if (oldIdx == 4) { // ArrayRef
+                    deferredReleases.defer(std::get<ArrayRef>(oldVal).id, true);
+                } else if (oldIdx == 5) { // DictRef
+                    deferredReleases.defer(std::get<DictRef>(oldVal).id, false);
+                }
                 runtime.retainValue(v);
                 oldVal = std::move(v);
                 localsDirty = true;  // Mark for lazy sync before lambda capture
+                
+                // Periodically flush deferred releases to prevent unbounded growth
+                if (++releaseCounter >= kReleaseBatchSize) {
+                    flushDeferredReleases();
+                    releaseCounter = 0;
+                }
                 break;
             }
 
@@ -1231,6 +1262,29 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
                 if (!ok) throw std::runtime_error("Bytecode decode error");
                 Value right = pop();
                 Value left = pop();
+                
+                // Ultra-fast inline path for int-int operations (most common case)
+                // This avoids function call overhead for tight loops
+                if (const int* li = std::get_if<int>(&left)) {
+                    if (const int* ri = std::get_if<int>(&right)) {
+                        switch (bop) {
+                        case bc::BinaryOp::ADD: push(Value(*li + *ri)); break;
+                        case bc::BinaryOp::SUB: push(Value(*li - *ri)); break;
+                        case bc::BinaryOp::MUL: push(Value(*li * *ri)); break;
+                        case bc::BinaryOp::DIV:
+                            if (*ri == 0) throw LanguageException("ArithmeticError", "Division by zero");
+                            push(Value(*li / *ri)); break;
+                        case bc::BinaryOp::LT: push(Value(*li < *ri)); break;
+                        case bc::BinaryOp::GT: push(Value(*li > *ri)); break;
+                        case bc::BinaryOp::LE: push(Value(*li <= *ri)); break;
+                        case bc::BinaryOp::GE: push(Value(*li >= *ri)); break;
+                        case bc::BinaryOp::EQ: push(Value(*li == *ri)); break;
+                        case bc::BinaryOp::NE: push(Value(*li != *ri)); break;
+                        }
+                        break;  // exit BINARY_OP case
+                    }
+                }
+                // Fallback to general path
                 push(applyBinary(left, right, bop));
                 break;
             }
@@ -1286,7 +1340,10 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
                     target = (size_t)newIp;
                 }
                 Value cond = pop();
-                if (!evalCondition(cond)) {
+                // Inline fast-path for bool (most common after comparisons)
+                if (const bool* b = std::get_if<bool>(&cond)) {
+                    if (!*b) ip = target;
+                } else if (!evalCondition(cond)) {
                     ip = target;
                 }
                 break;
@@ -1307,7 +1364,10 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
                     target = (size_t)newIp;
                 }
                 Value cond = pop();
-                if (evalCondition(cond)) {
+                // Inline fast-path for bool
+                if (const bool* b = std::get_if<bool>(&cond)) {
+                    if (*b) ip = target;
+                } else if (evalCondition(cond)) {
                     ip = target;
                 }
                 break;
@@ -1444,6 +1504,8 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
                 Value rv = pop();
                 // ARC: Retain return value before scope switch
                 runtime.retainValue(rv);
+                // Flush deferred releases before returning
+                flushDeferredReleases();
                 // ARC: Restore scope
                 runtime.popScope(savedVars);
                 runtime.currentThisObject = savedThis;
@@ -1451,6 +1513,8 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
             }
 
             case bc::OpCode::RETURN_VOID:
+                // Flush deferred releases before returning
+                flushDeferredReleases();
                 // ARC: Restore scope
                 runtime.popScope(savedVars);
                 runtime.currentThisObject = savedThis;
@@ -1496,9 +1560,14 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
                     throw LanguageException("RuntimeError", "Local slot 0 out of bounds");
                 }
                 Value v = pop();
-                // Inline ARC: release old, retain new
+                // Batch ARC: defer old value release
                 Value& oldVal = locals[0];
-                runtime.releaseValue(oldVal);
+                const auto oldIdx = oldVal.index();
+                if (oldIdx == 4) { // ArrayRef
+                    deferredReleases.defer(std::get<ArrayRef>(oldVal).id, true);
+                } else if (oldIdx == 5) { // DictRef
+                    deferredReleases.defer(std::get<DictRef>(oldVal).id, false);
+                }
                 runtime.retainValue(v);
                 oldVal = std::move(v);
                 localsDirty = true;
@@ -1654,22 +1723,100 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
                 bc::BinaryOp bop = static_cast<bc::BinaryOp>(opByte);
                 Value right = pop();
                 Value left = pop();
-                Value result = applyBinary(left, right, bop);
-                locals[slot] = result;
                 
-                // Sync to variables
-                if (slot < fn.localNameStrings.size()) {
-                    runtime.setVariable(str(fn.localNameStrings[slot]), result);
+                // Fast-path for int-int operations
+                if (const int* li = std::get_if<int>(&left)) {
+                    if (const int* ri = std::get_if<int>(&right)) {
+                        int result;
+                        switch (bop) {
+                        case bc::BinaryOp::ADD: result = *li + *ri; break;
+                        case bc::BinaryOp::SUB: result = *li - *ri; break;
+                        case bc::BinaryOp::MUL: result = *li * *ri; break;
+                        case bc::BinaryOp::DIV:
+                            if (*ri == 0) throw LanguageException("ArithmeticError", "Division by zero");
+                            result = *li / *ri; break;
+                        default: goto binary_op_store_fallback;
+                        }
+                        locals[slot] = Value(result);
+                        localsDirty = true;
+                        break;
+                    }
+                }
+                
+                binary_op_store_fallback:
+                {
+                    Value result = applyBinary(left, right, bop);
+                    
+                    // Defer release of old container value
+                    Value& oldVal = locals[slot];
+                    const auto oldIdx = oldVal.index();
+                    if (oldIdx == 4) { // ArrayRef
+                        deferredReleases.defer(std::get<ArrayRef>(oldVal).id, true);
+                    } else if (oldIdx == 5) { // DictRef
+                        deferredReleases.defer(std::get<DictRef>(oldVal).id, false);
+                    }
+                    
+                    locals[slot] = result;
+                    localsDirty = true;
+                }
+                break;
+            }
+            
+            case bc::OpCode::LOOP_COND_SLOT_LT_INT32: {
+                // Super-instruction: slot < constant ? continue : jump
+                // Fuses: LOAD_SLOT + PUSH_INT32 + BINARY_OP(LT) + JUMP_IF_FALSE
+                uint16_t slot;
+                int32_t limit;
+                size_t target;
+                if (VM_LIKELY(meta != nullptr)) {
+                    // Pre-decoded: imm0 = absolute target, imm1 = limit, imm2 = slot
+                    target = meta->imm0;
+                    limit = static_cast<int32_t>(meta->imm1);
+                    slot = meta->imm2;
+                    ip += 10; // u16 + i32 + i32
+                } else {
+                    slot = readU16(code, ip, &ok);
+                    limit = readI32(code, ip, &ok);
+                    int32_t relJump = readI32(code, ip, &ok);
+                    if (!ok) throw std::runtime_error("Bytecode decode error");
+                    int64_t newIp = static_cast<int64_t>(ip) + relJump;
+                    if (newIp < 0 || static_cast<size_t>(newIp) > code.size()) {
+                        throw LanguageException("RuntimeError", "Invalid jump target");
+                    }
+                    target = static_cast<size_t>(newIp);
+                }
+                
+                if (slot >= locals.size()) {
+                    throw LanguageException("RuntimeError", "Local slot out of bounds: " + std::to_string(slot));
+                }
+                
+                // Fast-path: expect slot to be int (loop counter)
+                const Value& slotVal = locals[slot];
+                if (const int* iv = std::get_if<int>(&slotVal)) {
+                    if (*iv >= limit) {
+                        ip = target;  // Jump out of loop
+                    }
+                    // else: condition true, continue loop body
+                } else {
+                    // Fallback: compare non-int values
+                    Value cmp = applyBinary(slotVal, Value(limit), bc::BinaryOp::LT);
+                    if (!evalCondition(cmp)) {
+                        ip = target;
+                    }
                 }
                 break;
             }
             }
         } catch (const LanguageException& ex) {
+            // Flush deferred releases before exception handling
+            flushDeferredReleases();
             // Uncaught from a callee (lambda/method/constructor): try to handle here.
             raise(ex);
         }
     }
 
+    // Flush remaining deferred releases
+    flushDeferredReleases();
     // ARC: Restore scope at end of function
     runtime.popScope(savedVars);
     runtime.currentThisObject = savedThis;

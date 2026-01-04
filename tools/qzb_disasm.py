@@ -63,6 +63,7 @@ OPCODES = [
     'DECREMENT_SLOT',
     'LOAD_SLOT_PUSH_INT32',
     'BINARY_OP_STORE_SLOT',
+    'LOOP_COND_SLOT_LT_INT32',
 ]
 
 
@@ -387,6 +388,12 @@ def disassemble_function(fn: dict, strings: list[str]) -> list[str]:
                 bop, o = read_u8(code, o)
                 slot, o = read_u16(code, o)
                 extra = f'op={bop} slot={slot}'
+            elif opname == 'LOOP_COND_SLOT_LT_INT32':
+                slot, o = read_u16(code, o)
+                limit, o = read_i32(code, o)
+                rel, o = read_i32(code, o)
+                target = o + rel
+                extra = f'slot={slot} limit={limit} rel={rel} -> {target}'
         except Exception as e:
             extra = f'<<decode error: {e}>>'
             # bail to avoid infinite loop

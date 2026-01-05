@@ -499,6 +499,59 @@ Value Runtime::evaluate(const ASTNodePtr& node) {
             }
             
             if (name.find('.') == std::string::npos) {
+                // First check if this is a user-defined function
+                auto userFuncIt = userFunctions.find(name);
+                if (userFuncIt != userFunctions.end()) {
+                    // Found user-defined function - invoke it
+                    const StoredFunction& func = userFuncIt->second;
+                    
+                    // Save current variables for restoration after call (ARC-aware)
+                    auto savedVars = variables;
+                    retainScope(savedVars);
+                    
+                    // Create new scope with parameters bound to arguments
+                    std::unordered_map<std::string, Value> newScope;
+                    for (size_t i = 0; i < func.params.size() && i < args.size(); ++i) {
+                        newScope[func.params[i]] = args[i];
+                        retainValue(args[i]);
+                    }
+                    pushScope(newScope);
+                    
+                    // Find the function body (Block node that's not parameters)
+                    ASTNodePtr bodyNode = nullptr;
+                    for (const auto& child : func.node->children) {
+                        if (child->type == NodeType::Block) {
+                            bodyNode = child;
+                            break;
+                        }
+                    }
+                    
+                    Value result;
+                    if (bodyNode) {
+                        // Execute the function body
+                        shouldReturn = false;
+                        pendingReturnValue = Value{};
+                        
+                        for (const auto& stmt : bodyNode->children) {
+                            executeNode(stmt);
+                            if (shouldReturn) {
+                                result = pendingReturnValue;
+                                shouldReturn = false;
+                                break;
+                            }
+                            if (shouldBreak || shouldContinue) break;
+                        }
+                    }
+                    
+                    // Retain result before restoring scope
+                    retainValue(result);
+                    
+                    // Restore previous scope
+                    popScope(savedVars);
+                    
+                    return result;
+                }
+                
                 // unqualified - search in imports
                 for (const auto& pair : imports) {
                     std::string full = pair.second + "." + name;

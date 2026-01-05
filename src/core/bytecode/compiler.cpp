@@ -820,6 +820,66 @@ void BytecodeCompiler::compileStatement(const ASTNodePtr& node, bc::Program& pro
         return;
     }
 
+    case NodeType::FunctionDef: {
+        // User-defined function: compile body to a new function, emit DEF_FUNCTION opcode
+        // Function name is stored in node->value (as string), not node->name
+        std::string funcName;
+        if (std::holds_alternative<std::string>(node->value)) {
+            funcName = std::get<std::string>(node->value);
+        } else {
+            funcName = node->name;  // fallback
+        }
+        Logger::instance().log(LogLevel::DEBUG, "Compiling FunctionDef: " + funcName);
+        
+        // Extract parameter names from the function node
+        std::vector<std::string> paramNames;
+        for (const auto& child : node->children) {
+            if (child->type == NodeType::Parameter) {
+                std::string paramName;
+                if (std::holds_alternative<std::string>(child->value)) {
+                    paramName = std::get<std::string>(child->value);
+                } else {
+                    paramName = child->name;
+                }
+                paramNames.push_back(paramName);
+            }
+        }
+        
+        // Create a new function in the program
+        uint32_t funcIndex = addFunction(program, funcName, paramNames);
+        bc::Function& funcFn = program.functions[funcIndex];
+        
+        // Set up locals context for the function
+        localsStack.push_back(LocalContext{});
+        // Parameters are automatically slots 0, 1, 2, ...
+        for (size_t i = 0; i < paramNames.size(); ++i) {
+            localsStack.back().slotByName[paramNames[i]] = static_cast<uint16_t>(i);
+        }
+        
+        // Find and compile the function body (Block node)
+        std::vector<LoopContext> funcLoopStack;
+        for (const auto& child : node->children) {
+            if (child->type == NodeType::Block) {
+                for (const auto& stmt : child->children) {
+                    compileStatement(stmt, program, funcFn, funcLoopStack, error);
+                }
+                break;
+            }
+        }
+        
+        // Ensure function has a return
+        emitOp(funcFn, bc::OpCode::RETURN_VOID);
+        
+        localsStack.pop_back();
+        
+        // Emit DEF_FUNCTION opcode in the calling context to register the function
+        emitOp(fn, bc::OpCode::DEF_FUNCTION);
+        emitU32(fn, internString(funcName));
+        emitU32(fn, funcIndex);
+        Logger::instance().log(LogLevel::DEBUG, "Emitted DEF_FUNCTION for " + funcName + " with funcIndex=" + std::to_string(funcIndex));
+        return;
+    }
+
     case NodeType::Throw: {
         if (node->children.empty()) return;
         const ASTNodePtr& expr = node->children[0];

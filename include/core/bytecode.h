@@ -62,6 +62,9 @@ enum class OpCode : uint8_t {
     // Lambdas
     MAKE_LAMBDA,      // u32 functionIndex
 
+    // User-defined functions
+    DEF_FUNCTION,     // u32 nameStringIndex, u32 functionIndex
+
     // Exceptions
     TRY_PUSH,         // u32 catchIp, u32 finallyIp, u8 hasFinally, u32 catchVarName, u32 catchTypeName
     TRY_POP,

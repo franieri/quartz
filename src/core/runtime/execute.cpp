@@ -413,11 +413,38 @@ void Runtime::executeNode(const ASTNodePtr& node) {
         break;
     }
 
-    case NodeType::FunctionDef:
+    case NodeType::FunctionDef: {
         // Store function definition for later invocation
-        // For now, just log that we saw it
-        Logger::instance().log(LogLevel::DEBUG, "Function defined: " + node->name);
+        // Function name is stored in node->value (as string), not node->name
+        std::string funcName;
+        if (std::holds_alternative<std::string>(node->value)) {
+            funcName = std::get<std::string>(node->value);
+        } else {
+            funcName = node->name;  // fallback
+        }
+        StoredFunction storedFunc;
+        storedFunc.node = node;
+        
+        // Extract parameter names from function definition
+        // Parameters are stored as children with NodeType::Parameter
+        for (const auto& child : node->children) {
+            if (child->type == NodeType::Parameter) {
+                std::string paramName;
+                if (std::holds_alternative<std::string>(child->value)) {
+                    paramName = std::get<std::string>(child->value);
+                } else {
+                    paramName = child->name;
+                }
+                storedFunc.params.push_back(paramName);
+            }
+        }
+        
+        // Store the function by its name
+        userFunctions[funcName] = std::move(storedFunc);
+        Logger::instance().log(LogLevel::DEBUG, "Function defined: " + funcName + 
+                              " with " + std::to_string(storedFunc.params.size()) + " parameters");
         break;
+    }
 
     case NodeType::ClassDef: {
         // Register class definition

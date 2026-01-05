@@ -8,10 +8,25 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+#include <memory>
+
+// Forward declaration for JIT
+namespace qz::jit {
+    class Engine;
+}
 
 class BytecodeVM {
 public:
-    explicit BytecodeVM(Runtime& runtime) : runtime(runtime) {}
+    explicit BytecodeVM(Runtime& runtime);
+    ~BytecodeVM();
+    
+    // Enable/disable JIT compilation
+    void setJITEnabled(bool enabled);
+    bool isJITEnabled() const;
+    
+    // Set JIT compilation threshold (default: 100)
+    void setJITThreshold(uint32_t threshold);
+    uint32_t jitThreshold() const;
 
     bool run(const bc::Program& program, std::string* error);
 
@@ -57,6 +72,9 @@ private:
     std::unordered_map<std::string, BCClass> classes;
     std::unordered_map<std::string, std::string> classToModule;
     std::unordered_set<std::string> executedModules;
+    
+    // User-defined functions: name -> function index
+    std::unordered_map<std::string, uint32_t> userFunctions;
 
     std::string currentLoadingModule;
     uint32_t nextLambdaId = 0;
@@ -105,6 +123,17 @@ private:
 
     // Returns const ref to avoid string copy on every lookup
     const std::string& str(uint32_t stringIndex) const;
+    
+    // JIT support
+#ifdef QZ_JIT_ENABLED
+    std::unique_ptr<qz::jit::Engine> jitEngine_;
+#endif
+    bool jitEnabled_ = false;
+    uint32_t jitThreshold_ = 100;
+    
+    // Try to execute function with JIT, returns false if should use interpreter
+    bool tryJITExecute(uint32_t functionIndex, const std::vector<Value>& args,
+                       Value& result, std::string* error);
 };
 
 #endif // QZ_BYTECODE_VM_H

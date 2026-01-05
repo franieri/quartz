@@ -345,6 +345,7 @@ bool Compiler::canCompile(const bc::Function& fn) {
             case bc::OpCode::PUSH_INT32_NEG1:
             case bc::OpCode::PUSH_TRUE:
             case bc::OpCode::PUSH_FALSE:
+            case bc::OpCode::PUSH_NULL:
             case bc::OpCode::POP:
             case bc::OpCode::RETURN_VALUE:
             case bc::OpCode::RETURN_VOID:
@@ -622,6 +623,20 @@ bool Compiler::compileOpcode(const bc::Function& fn, const bc::Program& program,
             break;
         }
         
+        case bc::OpCode::PUSH_NULL: {
+            // Push empty/null value - represented as empty string (tag=3 for string)
+            // For simplicity in JIT, we push 0 with a special tag
+            // mov qword [rbx], 0
+            emitByte(0x48); emitByte(0xC7); emitByte(0x03);
+            emitByte(0x00); emitByte(0x00); emitByte(0x00); emitByte(0x00);
+            // mov byte [rbx+8], 3  (TAG_STRING - empty string as null)
+            emitByte(0xC6); emitByte(0x43); emitByte(0x08); emitByte(0x03);
+            // add rbx, 16
+            emitByte(0x48); emitByte(0x83); emitByte(0xC3); emitByte(0x10);
+            stackDelta++;
+            break;
+        }
+        
         case bc::OpCode::PUSH_DOUBLE64: {
             uint64_t bits;
             std::memcpy(&bits, &code[ip], 8);
@@ -752,12 +767,95 @@ bool Compiler::compileOpcode(const bc::Function& fn, const bc::Program& program,
             
             // sub rbx, 16 (prepare for result in stack[-2])
             emitByte(0x48); emitByte(0x83); emitByte(0xEB); emitByte(0x10);
+            
+            // Check if left operand is a double (tag at [rbx-16+8])
+            // mov al, [rbx-16+8]  (left tag)
+            emitByte(0x8A); emitByte(0x43); emitByte(0xF8);
+            // cmp al, 1  (TAG_DOUBLE)
+            emitByte(0x3C); emitByte(0x01);
+            // jne int_path
+            emitByte(0x75);
+            size_t intPathPatch = emitOffset_;
+            emitByte(0x00);  // placeholder
+            
+            // === DOUBLE PATH ===
+            // movsd xmm0, [rbx-16]  (left as double)
+            emitByte(0xF2); emitByte(0x0F); emitByte(0x10); emitByte(0x43); emitByte(0xF0);
+            // movsd xmm1, [rbx]     (right as double)
+            emitByte(0xF2); emitByte(0x0F); emitByte(0x10); emitByte(0x0B);
+            
+            bool isComparison = false;
+            switch (op) {
+                case bc::BinaryOp::ADD:
+                    // addsd xmm0, xmm1
+                    emitByte(0xF2); emitByte(0x0F); emitByte(0x58); emitByte(0xC1);
+                    break;
+                case bc::BinaryOp::SUB:
+                    // subsd xmm0, xmm1
+                    emitByte(0xF2); emitByte(0x0F); emitByte(0x5C); emitByte(0xC1);
+                    break;
+                case bc::BinaryOp::MUL:
+                    // mulsd xmm0, xmm1
+                    emitByte(0xF2); emitByte(0x0F); emitByte(0x59); emitByte(0xC1);
+                    break;
+                case bc::BinaryOp::DIV:
+                    // divsd xmm0, xmm1
+                    emitByte(0xF2); emitByte(0x0F); emitByte(0x5E); emitByte(0xC1);
+                    break;
+                case bc::BinaryOp::EQ:
+                case bc::BinaryOp::NE:
+                case bc::BinaryOp::LT:
+                case bc::BinaryOp::GT:
+                case bc::BinaryOp::LE:
+                case bc::BinaryOp::GE:
+                    isComparison = true;
+                    // ucomisd xmm0, xmm1
+                    emitByte(0x66); emitByte(0x0F); emitByte(0x2E); emitByte(0xC1);
+                    // setCC al  (use unsigned comparisons for floating point)
+                    emitByte(0x0F);
+                    switch (op) {
+                        case bc::BinaryOp::EQ: emitByte(0x94); break;  // sete
+                        case bc::BinaryOp::NE: emitByte(0x95); break;  // setne
+                        case bc::BinaryOp::LT: emitByte(0x92); break;  // setb (below)
+                        case bc::BinaryOp::GT: emitByte(0x97); break;  // seta (above)
+                        case bc::BinaryOp::LE: emitByte(0x96); break;  // setbe
+                        case bc::BinaryOp::GE: emitByte(0x93); break;  // setae
+                        default: break;
+                    }
+                    emitByte(0xC0);  // al
+                    // movzx rax, al
+                    emitByte(0x48); emitByte(0x0F); emitByte(0xB6); emitByte(0xC0);
+                    // mov [rbx-16], rax
+                    emitByte(0x48); emitByte(0x89); emitByte(0x43); emitByte(0xF0);
+                    // mov byte [rbx-16+8], 2  (TAG_BOOL)
+                    emitByte(0xC6); emitByte(0x43); emitByte(0xF8); emitByte(0x02);
+                    break;
+                default:
+                    return false;
+            }
+            
+            if (!isComparison) {
+                // movsd [rbx-16], xmm0  (store double result)
+                emitByte(0xF2); emitByte(0x0F); emitByte(0x11); emitByte(0x43); emitByte(0xF0);
+                // mov byte [rbx-16+8], 1  (TAG_DOUBLE)
+                emitByte(0xC6); emitByte(0x43); emitByte(0xF8); emitByte(0x01);
+            }
+            
+            // jmp done
+            emitByte(0xEB);
+            size_t donePatch = emitOffset_;
+            emitByte(0x00);  // placeholder
+            
+            // === INTEGER PATH ===
+            size_t intPathStart = emitOffset_;
+            // Patch the jne to jump here
+            emitBuffer_[intPathPatch] = static_cast<uint8_t>(intPathStart - (intPathPatch + 1));
+            
             // mov rcx, [rbx]  (right operand)
             emitByte(0x48); emitByte(0x8B); emitByte(0x0B);
             // mov rax, [rbx-16]  (left operand)
             emitByte(0x48); emitByte(0x8B); emitByte(0x43); emitByte(0xF0);
             
-            bool isComparison = false;
             switch (op) {
                 case bc::BinaryOp::ADD:
                     // add rax, rcx
@@ -782,7 +880,6 @@ bool Compiler::compileOpcode(const bc::Function& fn, const bc::Program& program,
                 case bc::BinaryOp::GT:
                 case bc::BinaryOp::LE:
                 case bc::BinaryOp::GE:
-                    isComparison = true;
                     // cmp rax, rcx
                     emitByte(0x48); emitByte(0x39); emitByte(0xC8);
                     // setCC al
@@ -813,6 +910,11 @@ bool Compiler::compileOpcode(const bc::Function& fn, const bc::Program& program,
             }
             // else tag stays as TAG_INT (0) from original value
             
+            // === DONE ===
+            size_t doneStart = emitOffset_;
+            // Patch the jmp done
+            emitBuffer_[donePatch] = static_cast<uint8_t>(doneStart - (donePatch + 1));
+            
             stackDelta--;
             break;
         }
@@ -820,28 +922,64 @@ bool Compiler::compileOpcode(const bc::Function& fn, const bc::Program& program,
         case bc::OpCode::UNARY_OP: {
             auto op = static_cast<bc::UnaryOp>(code[ip++]);
             
-            // mov rax, [rbx-16]
-            emitByte(0x48); emitByte(0x8B); emitByte(0x43); emitByte(0xF0);
-            
             switch (op) {
-                case bc::UnaryOp::NEG:
+                case bc::UnaryOp::NEG: {
+                    // Check if operand is a double
+                    // mov al, [rbx-16+8]  (tag)
+                    emitByte(0x8A); emitByte(0x43); emitByte(0xF8);
+                    // cmp al, 1  (TAG_DOUBLE)
+                    emitByte(0x3C); emitByte(0x01);
+                    // jne int_neg
+                    emitByte(0x75);
+                    size_t intNegPatch = emitOffset_;
+                    emitByte(0x00);
+                    
+                    // Double negation: xor the sign bit
+                    // mov rax, [rbx-16]
+                    emitByte(0x48); emitByte(0x8B); emitByte(0x43); emitByte(0xF0);
+                    // movabs rcx, 0x8000000000000000  (sign bit)
+                    emitByte(0x48); emitByte(0xB9);
+                    emitByte(0x00); emitByte(0x00); emitByte(0x00); emitByte(0x00);
+                    emitByte(0x00); emitByte(0x00); emitByte(0x00); emitByte(0x80);
+                    // xor rax, rcx
+                    emitByte(0x48); emitByte(0x31); emitByte(0xC8);
+                    // mov [rbx-16], rax
+                    emitByte(0x48); emitByte(0x89); emitByte(0x43); emitByte(0xF0);
+                    // jmp done
+                    emitByte(0xEB);
+                    size_t donePatch = emitOffset_;
+                    emitByte(0x00);
+                    
+                    // Integer negation
+                    size_t intNegStart = emitOffset_;
+                    emitBuffer_[intNegPatch] = static_cast<uint8_t>(intNegStart - (intNegPatch + 1));
+                    // mov rax, [rbx-16]
+                    emitByte(0x48); emitByte(0x8B); emitByte(0x43); emitByte(0xF0);
                     // neg rax
                     emitByte(0x48); emitByte(0xF7); emitByte(0xD8);
+                    // mov [rbx-16], rax
+                    emitByte(0x48); emitByte(0x89); emitByte(0x43); emitByte(0xF0);
+                    
+                    // Done
+                    size_t doneStart = emitOffset_;
+                    emitBuffer_[donePatch] = static_cast<uint8_t>(doneStart - (donePatch + 1));
                     break;
+                }
                 case bc::UnaryOp::NOT:
+                    // mov rax, [rbx-16]
+                    emitByte(0x48); emitByte(0x8B); emitByte(0x43); emitByte(0xF0);
                     // test rax, rax; sete al; movzx rax, al
                     emitByte(0x48); emitByte(0x85); emitByte(0xC0);
                     emitByte(0x0F); emitByte(0x94); emitByte(0xC0);
                     emitByte(0x48); emitByte(0x0F); emitByte(0xB6); emitByte(0xC0);
+                    // mov [rbx-16], rax
+                    emitByte(0x48); emitByte(0x89); emitByte(0x43); emitByte(0xF0);
                     // mov byte [rbx-16+8], 2  (TAG_BOOL)
                     emitByte(0xC6); emitByte(0x43); emitByte(0xF8); emitByte(0x02);
                     break;
                 default:
                     return false;
             }
-            
-            // mov [rbx-16], rax
-            emitByte(0x48); emitByte(0x89); emitByte(0x43); emitByte(0xF0);
             break;
         }
         

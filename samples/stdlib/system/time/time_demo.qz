@@ -19,6 +19,7 @@ int day = time.day(now);
 int hour = time.hour(now);
 int minute = time.minute(now);
 int second = time.second(now);
+int milliseconds = time.millisecond(now);
 int weekday = time.weekday(now);
 
 io.println("Year:", year);
@@ -27,6 +28,7 @@ io.println("Day:", day);
 io.println("Hour:", hour);
 io.println("Minute:", minute);
 io.println("Second:", second);
+io.println("Milliseconds:", milliseconds);
 io.println("Weekday:", weekday);
 
 // Parse a date string

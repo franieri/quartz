@@ -224,6 +224,26 @@ void register_time_functions(FunctionRegistry& reg) {
     reg.registerFunction("system.time.second", second_func);
     
     // ========================================================================
+    // system.time.millisecond - Extract milliseconds (0-999) from ms timestamp
+    // ========================================================================
+    auto millisecond_func = [](const std::vector<Value>& args) -> Value {
+        if (args.empty()) return Value(0);
+        
+        int msTimestamp = 0;
+        if (std::holds_alternative<int>(args[0])) {
+            msTimestamp = std::get<int>(args[0]);
+        } else {
+            return Value(0);
+        }
+        
+        // Extract just the millisecond component (0-999)
+        int ms = msTimestamp % 1000;
+        if (ms < 0) ms += 1000;  // Handle negative timestamps
+        return Value(ms);
+    };
+    reg.registerFunction("system.time.millisecond", millisecond_func);
+    
+    // ========================================================================
     // system.time.weekday - Day of week (0=Sunday, 6=Saturday)
     // ========================================================================
     auto weekday_func = [](const std::vector<Value>& args) -> Value {

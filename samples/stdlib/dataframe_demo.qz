@@ -1,0 +1,254 @@
+// ============================================================================
+// DataFrame Demo - High-Performance Data Analysis in Quartz
+// ============================================================================
+// This demonstrates the system.data extension for pandas-like data manipulation
+// Features: CSV parsing, filtering, aggregation, groupby, joins, and more
+
+import system.data;
+
+// ============================================================================
+// 1. Creating DataFrames
+// ============================================================================
+
+io.out.println("=== DataFrame Creation Demo ===\n");
+
+// Create from CSV string
+string csvData = "name,age,salary,department
+Alice,30,75000,Engineering
+Bob,25,55000,Marketing
+Charlie,35,85000,Engineering
+Diana,28,65000,Sales
+Eve,32,70000,Marketing
+Frank,40,95000,Engineering";
+
+let df = system.data.df.fromCSV(csvData, ",", true);
+io.out.println("Created DataFrame from CSV:");
+io.out.println(system.data.df.repr(df, 10));
+
+// Get basic info
+io.out.println("Rows: ", system.data.df.numRows(df));
+io.out.println("Cols: ", system.data.df.numCols(df));
+io.out.println("Columns: ", system.data.df.columns(df));
+io.out.println("");
+
+// ============================================================================
+// 2. Column Operations
+// ============================================================================
+
+io.out.println("=== Column Statistics ===\n");
+
+// Get statistics for specific columns
+io.out.println("Age - Mean: ", system.data.df.col.mean(df, "age"));
+io.out.println("Age - Std: ", system.data.df.col.std(df, "age"));
+io.out.println("Salary - Min: ", system.data.df.col.min(df, "salary"));
+io.out.println("Salary - Max: ", system.data.df.col.max(df, "salary"));
+io.out.println("Salary - Sum: ", system.data.df.col.sum(df, "salary"));
+io.out.println("");
+
+// ============================================================================
+// 3. Filtering and Querying
+// ============================================================================
+
+io.out.println("=== Filtering Data ===\n");
+
+// Filter: salary > 60000
+let highSalary = system.data.df.query(df, "salary > 60000");
+io.out.println("Employees with salary > 60000:");
+io.out.println(system.data.df.repr(highSalary, 10));
+
+// Filter: age < 32
+let youngEmployees = system.data.df.query(df, "age < 32");
+io.out.println("Employees younger than 32:");
+io.out.println(system.data.df.repr(youngEmployees, 10));
+
+// ============================================================================
+// 4. Sorting
+// ============================================================================
+
+io.out.println("=== Sorting ===\n");
+
+// Sort by salary descending
+let sortedBySalary = system.data.df.sortBy(df, "salary", false);
+io.out.println("Sorted by salary (descending):");
+io.out.println(system.data.df.repr(sortedBySalary, 10));
+
+// ============================================================================
+// 5. Aggregation
+// ============================================================================
+
+io.out.println("=== Aggregation ===\n");
+
+// Get all column means
+let means = system.data.df.mean(df);
+io.out.println("Column means: ", means);
+
+// Get all column sums
+let sums = system.data.df.sum(df);
+io.out.println("Column sums: ", sums);
+
+// Describe (summary statistics)
+let desc = system.data.df.describe(df);
+io.out.println("\nDescriptive Statistics:");
+io.out.println(system.data.df.repr(desc, 10));
+
+// ============================================================================
+// 6. GroupBy Operations
+// ============================================================================
+
+io.out.println("=== GroupBy Operations ===\n");
+
+// Group by department and get mean
+let deptMeans = system.data.df.groupby.mean(df, "department");
+io.out.println("Mean salary by department:");
+io.out.println(system.data.df.repr(deptMeans, 10));
+
+// Group by department and count
+let deptCounts = system.data.df.groupby.count(df, "department");
+io.out.println("Employee count by department:");
+io.out.println(system.data.df.repr(deptCounts, 10));
+
+// Group by department and sum
+let deptSums = system.data.df.groupby.sum(df, "department");
+io.out.println("Total salary by department:");
+io.out.println(system.data.df.repr(deptSums, 10));
+
+// ============================================================================
+// 7. DataFrame Joins
+// ============================================================================
+
+io.out.println("=== Join Operations ===\n");
+
+// Create another DataFrame for joining
+string deptData = "department,budget,location
+Engineering,500000,Building A
+Marketing,200000,Building B
+Sales,150000,Building C";
+
+let departments = system.data.df.fromCSV(deptData, ",", true);
+io.out.println("Department info:");
+io.out.println(system.data.df.repr(departments, 10));
+
+// Merge on department
+let merged = system.data.df.merge(df, departments, "department", "inner");
+io.out.println("Merged DataFrame:");
+io.out.println(system.data.df.repr(merged, 10));
+
+// ============================================================================
+// 8. Column Selection and Manipulation
+// ============================================================================
+
+io.out.println("=== Column Selection ===\n");
+
+// Select specific columns
+let subset = system.data.df.select(df, ["name", "salary"]);
+io.out.println("Selected columns (name, salary):");
+io.out.println(system.data.df.repr(subset, 10));
+
+// Drop columns
+let dropped = system.data.df.drop(df, ["department"]);
+io.out.println("After dropping 'department':");
+io.out.println(system.data.df.repr(dropped, 10));
+
+// ============================================================================
+// 9. Row Operations
+// ============================================================================
+
+io.out.println("=== Row Operations ===\n");
+
+// Head and tail
+let head = system.data.df.head(df, 3);
+io.out.println("First 3 rows:");
+io.out.println(system.data.df.repr(head, 10));
+
+let tail = system.data.df.tail(df, 2);
+io.out.println("Last 2 rows:");
+io.out.println(system.data.df.repr(tail, 10));
+
+// ============================================================================
+// 10. Correlation Matrix
+// ============================================================================
+
+io.out.println("=== Correlation Analysis ===\n");
+
+// Create numeric-only DataFrame
+string numericCsv = "feature1,feature2,feature3
+1.0,2.0,3.0
+2.0,4.0,5.0
+3.0,6.0,8.0
+4.0,8.0,11.0
+5.0,10.0,14.0";
+
+let numericDf = system.data.df.fromCSV(numericCsv, ",", true);
+let corrMatrix = system.data.df.corr(numericDf);
+io.out.println("Correlation matrix:");
+io.out.println(system.data.df.repr(corrMatrix, 10));
+
+// ============================================================================
+// 11. Series Operations
+// ============================================================================
+
+io.out.println("=== Series Operations ===\n");
+
+// Create a series
+let series = system.data.series.create("values", [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]);
+io.out.println(system.data.series.repr(series));
+
+io.out.println("Sum: ", system.data.series.sum(series));
+io.out.println("Mean: ", system.data.series.mean(series));
+io.out.println("Std: ", system.data.series.std(series));
+io.out.println("Min: ", system.data.series.min(series));
+io.out.println("Max: ", system.data.series.max(series));
+io.out.println("Median: ", system.data.series.median(series));
+io.out.println("25th percentile: ", system.data.series.quantile(series, 0.25));
+io.out.println("75th percentile: ", system.data.series.quantile(series, 0.75));
+
+// Create a range series
+let rangeSeries = system.data.series.range("idx", 0, 100, 10);
+io.out.println("\nRange Series:");
+io.out.println(system.data.series.repr(rangeSeries));
+
+// ============================================================================
+// 12. Export to JSON
+// ============================================================================
+
+io.out.println("=== JSON Export ===\n");
+
+let jsonRecords = system.data.df.toJSON(df, "records");
+io.out.println("JSON (records):");
+io.out.println(jsonRecords);
+
+io.out.println("");
+
+let jsonColumns = system.data.df.toJSON(df, "columns");
+io.out.println("JSON (columns):");
+io.out.println(jsonColumns);
+
+// ============================================================================
+// 13. Memory Management
+// ============================================================================
+
+io.out.println("\n=== Memory Info ===\n");
+
+io.out.println("DataFrame memory usage: ", system.data.df.memory(df), " bytes");
+
+// Clean up
+system.data.df.destroy(df);
+system.data.df.destroy(highSalary);
+system.data.df.destroy(youngEmployees);
+system.data.df.destroy(sortedBySalary);
+system.data.df.destroy(desc);
+system.data.df.destroy(deptMeans);
+system.data.df.destroy(deptCounts);
+system.data.df.destroy(deptSums);
+system.data.df.destroy(departments);
+system.data.df.destroy(merged);
+system.data.df.destroy(subset);
+system.data.df.destroy(dropped);
+system.data.df.destroy(head);
+system.data.df.destroy(tail);
+system.data.df.destroy(numericDf);
+system.data.df.destroy(corrMatrix);
+system.data.series.destroy(series);
+system.data.series.destroy(rangeSeries);
+
+io.out.println("All DataFrames destroyed. Demo complete!");

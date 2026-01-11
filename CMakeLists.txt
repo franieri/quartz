@@ -3,6 +3,22 @@ cmake_minimum_required(VERSION 3.10)
 project(Quartz VERSION 0.1.0 LANGUAGES CXX)
 
 # ============================================================================
+# Build Options (can be set from build.sh via -D flags)
+# ============================================================================
+option(QZ_JIT_ENABLED "Enable Copy-and-Patch JIT compiler" ON)
+option(QZ_JIT_DEBUG "Enable JIT debug output" OFF)
+option(QZ_LTO_ENABLED "Enable Link-Time Optimization" ON)
+option(QZ_NATIVE_ARCH "Enable native architecture optimizations" OFF)
+option(QZ_VM_DEBUG_TRACE "Enable VM debug tracing" OFF)
+option(QZ_VM_INSTRUCTION_CACHE "Enable VM instruction caching" ON)
+
+set(QZ_JIT_THRESHOLD "100" CACHE STRING "JIT compilation threshold")
+set(QZ_VM_STACK_SIZE "65536" CACHE STRING "VM stack size")
+set(QZ_HEAP_INITIAL_MB "64" CACHE STRING "Initial heap size in MB")
+set(QZ_HEAP_MAX_MB "0" CACHE STRING "Maximum heap size in MB (0=unlimited)")
+set(QZ_ARCH "" CACHE STRING "Target architecture for JIT (auto-detected if empty)")
+
+# ============================================================================
 # Compiler Configuration
 # ============================================================================
 set(CMAKE_CXX_STANDARD 17)
@@ -81,6 +97,52 @@ endif()
 # ============================================================================
 include_directories(include)
 include_directories(include/core)
+include_directories(jit)
+
+# ============================================================================
+# JIT Configuration
+# ============================================================================
+if(QZ_JIT_ENABLED)
+    message(STATUS "JIT compilation: ENABLED (threshold=${QZ_JIT_THRESHOLD})")
+    add_definitions(-DQZ_JIT_ENABLED=1)
+    add_definitions(-DQZ_JIT_THRESHOLD=${QZ_JIT_THRESHOLD})
+    
+    if(QZ_JIT_DEBUG)
+        add_definitions(-DQZ_JIT_DEBUG=1)
+    endif()
+    
+    # Detect architecture for JIT stencils
+    if(QZ_ARCH STREQUAL "")
+        if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|amd64|AMD64")
+            set(QZ_ARCH "x86_64")
+        elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64|ARM64")
+            set(QZ_ARCH "aarch64")
+        else()
+            message(WARNING "Unknown architecture ${CMAKE_SYSTEM_PROCESSOR}, JIT disabled")
+            set(QZ_JIT_ENABLED OFF)
+        endif()
+    endif()
+    
+    if(QZ_JIT_ENABLED)
+        message(STATUS "JIT target architecture: ${QZ_ARCH}")
+        add_definitions(-DQZ_JIT_ARCH_${QZ_ARCH}=1)
+    endif()
+else()
+    message(STATUS "JIT compilation: DISABLED")
+endif()
+
+# VM Configuration
+add_definitions(-DQZ_VM_STACK_SIZE=${QZ_VM_STACK_SIZE})
+if(QZ_VM_INSTRUCTION_CACHE)
+    add_definitions(-DQZ_VM_INSTRUCTION_CACHE=1)
+endif()
+if(QZ_VM_DEBUG_TRACE)
+    add_definitions(-DQZ_VM_DEBUG_TRACE=1)
+endif()
+
+# Memory configuration
+add_definitions(-DQZ_HEAP_INITIAL_MB=${QZ_HEAP_INITIAL_MB})
+add_definitions(-DQZ_HEAP_MAX_MB=${QZ_HEAP_MAX_MB})
 
 # ============================================================================
 # Extensions
@@ -96,6 +158,11 @@ file(GLOB_RECURSE CORE_SOURCES
 
 # Remove main.cpp from core sources (it's for the executable)
 list(REMOVE_ITEM CORE_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/core/main.cpp)
+
+# Add JIT sources if enabled
+if(QZ_JIT_ENABLED)
+    list(APPEND CORE_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/jit/jit.cpp)
+endif()
 
 add_library(qz-core SHARED ${CORE_SOURCES})
 
@@ -159,4 +226,14 @@ message(STATUS "Build type:     ${CMAKE_BUILD_TYPE}")
 message(STATUS "C++ Standard:   ${CMAKE_CXX_STANDARD}")
 message(STATUS "Compiler:       ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
 message(STATUS "Install prefix: ${CMAKE_INSTALL_PREFIX}")
+message(STATUS "----------------------------------------------")
+message(STATUS "JIT enabled:    ${QZ_JIT_ENABLED}")
+if(QZ_JIT_ENABLED)
+message(STATUS "JIT threshold:  ${QZ_JIT_THRESHOLD}")
+message(STATUS "JIT arch:       ${QZ_ARCH}")
+message(STATUS "JIT debug:      ${QZ_JIT_DEBUG}")
+endif()
+message(STATUS "LTO enabled:    ${QZ_LTO_ENABLED}")
+message(STATUS "Native arch:    ${QZ_NATIVE_ARCH}")
+message(STATUS "VM stack size:  ${QZ_VM_STACK_SIZE}")
 message(STATUS "==============================================")

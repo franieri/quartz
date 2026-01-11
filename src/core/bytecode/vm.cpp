@@ -4,10 +4,18 @@
 #include "logger.h"
 #include "vm_optimizations.h"
 
+// JIT support (conditionally included)
+#ifdef QZ_JIT_ENABLED
+#include "jit.h"
+#endif
+
 #include <cstring>
 #include <charconv>
 #include <cmath>
 #include <unordered_set>
+#ifdef QZ_JIT_DEBUG
+#include <iostream>
+#endif
 
 // ============================================================================
 // VM Configuration Constants - Tunable for performance
@@ -94,6 +102,98 @@ static inline void appendValueToStringVM(std::string& out, const Value& val, boo
 }
 
 static inline bool isStringValue(const Value& v) { return std::holds_alternative<std::string>(v); }
+
+// ===========================================================================
+// BytecodeVM Constructor / Destructor
+// ===========================================================================
+
+BytecodeVM::BytecodeVM(Runtime& rt) : runtime(rt) {
+#ifdef QZ_JIT_ENABLED
+    jitEngine_ = std::make_unique<qz::jit::Engine>(rt);
+    // Check if JIT should be enabled by default (compile-time threshold)
+    #ifdef QZ_JIT_THRESHOLD
+    jitThreshold_ = QZ_JIT_THRESHOLD;
+    jitEngine_->setThreshold(jitThreshold_);
+    #endif
+    jitEnabled_ = true;  // Enable by default when built with JIT support
+#endif
+}
+
+BytecodeVM::~BytecodeVM() = default;
+
+void BytecodeVM::setJITEnabled(bool enabled) {
+    jitEnabled_ = enabled;
+#ifdef QZ_JIT_ENABLED
+    if (jitEngine_) {
+        jitEngine_->setEnabled(enabled);
+    }
+#endif
+}
+
+bool BytecodeVM::isJITEnabled() const {
+    return jitEnabled_;
+}
+
+void BytecodeVM::setJITThreshold(uint32_t threshold) {
+    jitThreshold_ = threshold;
+#ifdef QZ_JIT_ENABLED
+    if (jitEngine_) {
+        jitEngine_->setThreshold(threshold);
+    }
+#endif
+}
+
+uint32_t BytecodeVM::jitThreshold() const {
+    return jitThreshold_;
+}
+
+bool BytecodeVM::tryJITExecute(uint32_t functionIndex, const std::vector<Value>& args,
+                                Value& result, std::string* error) {
+#ifdef QZ_JIT_ENABLED
+    if (!jitEnabled_ || !jitEngine_ || !prog) {
+        return false;
+    }
+    
+    // Record the call for hotness tracking
+    jitEngine_->recordCall(functionIndex);
+    
+    // Check if we have compiled code or should compile now
+    qz::jit::CompiledFunction* compiled = jitEngine_->getCompiled(*prog, functionIndex);
+    if (!compiled || !compiled->isValid) {
+        return false;  // Fall back to interpreter
+    }
+    
+    const bc::Function& fn = prog->functions[functionIndex];
+    
+    // Prepare JIT stack and locals
+    std::vector<qz::jit::JITValue> jitStack(128);
+    std::vector<qz::jit::JITValue> jitLocals(fn.localNameStrings.size());
+    
+    // Convert arguments to JIT values and place in locals (param slots)
+    for (size_t i = 0; i < args.size() && i < fn.paramNameStrings.size(); ++i) {
+        jitLocals[i] = qz::jit::valueToJIT(args[i]);
+    }
+    
+    // Execute compiled code
+    qz::jit::JITFunction jitFn = compiled->getEntryPoint();
+    jitFn(jitStack.data(), jitLocals.data(), &runtime);
+    
+    // Get return value from stack top
+    // For now, assume result is at stack[0] after execution
+    // This matches our stencil convention
+    result = qz::jit::jitToValue(jitStack[0]);
+    
+    return true;
+#else
+    (void)functionIndex;
+    (void)args;
+    (void)result;
+    (void)error;
+    return false;  // JIT not compiled in
+#endif
+}
+
+// ===========================================================================
 
 // Branch prediction hints for hot paths
 #if defined(__GNUC__) || defined(__clang__)
@@ -700,6 +800,14 @@ Value BytecodeVM::callName(const std::string& name, const std::vector<Value>& ar
         }
     }
 
+    // Check for user-defined functions (unqualified names only)
+    if (name.find('.') == std::string::npos) {
+        auto userFuncIt = userFunctions.find(name);
+        if (userFuncIt != userFunctions.end()) {
+            return runFunction(userFuncIt->second, args, nullptr, nullptr, error);
+        }
+    }
+
     // Built-in function registry
     if (name.find('.') == std::string::npos) {
         for (const auto& pair : runtime.imports) {
@@ -804,6 +912,23 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
         if (error) *error = "Invalid function index";
         return Value{};
     }
+
+    // =========================================================================
+    // JIT Execution Path
+    // =========================================================================
+    // Try JIT execution for simple functions without overrides
+    // JIT is only used for "clean" function calls - no variable overrides
+    // or 'this' context changes that would require interpreter semantics
+#ifdef QZ_JIT_ENABLED
+    if (jitEnabled_ && !overrideVars && !overrideThis) {
+        Value jitResult;
+        if (tryJITExecute(functionIndex, args, jitResult, error)) {
+            return jitResult;
+        }
+        // Fall through to interpreter if JIT didn't handle it
+    }
+#endif
+    // =========================================================================
 
     const bc::Function& fn = prog->functions[functionIndex];
     const std::vector<uint8_t>& code = fn.code;
@@ -1486,6 +1611,18 @@ Value BytecodeVM::runFunction(uint32_t functionIndex, const std::vector<Value>& 
 
             case bc::OpCode::DEF_INTERFACE: {
                 if (!execDefInterface(code, ip, error)) return Value{};
+                break;
+            }
+
+            case bc::OpCode::DEF_FUNCTION: {
+                // Register a user-defined function
+                uint32_t nameIdx = readU32(code, ip, &ok);
+                uint32_t funcIdx = readU32(code, ip, &ok);
+                if (!ok) throw std::runtime_error("Bytecode decode error in DEF_FUNCTION");
+                
+                std::string funcName = str(nameIdx);
+                userFunctions[funcName] = funcIdx;
+                Logger::instance().log(LogLevel::DEBUG, "DEF_FUNCTION: registered '" + funcName + "' as function index " + std::to_string(funcIdx));
                 break;
             }
 

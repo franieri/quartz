@@ -483,6 +483,13 @@ private:
     std::unordered_map<std::string, StoredLambda> lambdaStorage;  // Store lambda closures
     std::unordered_map<std::string, std::string> varToLambdaId;  // Map variable name to lambda ID
 
+    // User-defined function storage
+    struct StoredFunction {
+        ASTNodePtr node;  // The FunctionDef AST node (contains params and body)
+        std::vector<std::string> params;  // Parameter names for quick access
+    };
+    std::unordered_map<std::string, StoredFunction> userFunctions;  // name -> function definition
+
     // Task/async storage
     struct StoredTask {
         TaskState state = TaskState::Pending;

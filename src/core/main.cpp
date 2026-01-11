@@ -204,6 +204,12 @@ int main(int argc, char* argv[]) {
             runtime.initialize();
 
             BytecodeVM vm(runtime);
+#ifdef QZ_JIT_ENABLED
+            // JIT is enabled at build time - log it
+            if (vm.isJITEnabled()) {
+                std::cerr << "[JIT] Enabled with threshold=" << vm.jitThreshold() << std::endl;
+            }
+#endif
             if (!vm.run(program, &err)) {
                 std::cerr << "VM error: " << err << std::endl;
                 return 1;
@@ -263,6 +269,12 @@ int main(int argc, char* argv[]) {
         runtime.initialize();
         runtime.setSourcePath(inputPath);
         BytecodeVM vm(runtime);
+#ifdef QZ_JIT_ENABLED
+        // JIT is enabled at build time - log it
+        if (vm.isJITEnabled()) {
+            std::cerr << "[JIT] Enabled with threshold=" << vm.jitThreshold() << std::endl;
+        }
+#endif
         if (!vm.run(program, &err)) {
             std::cerr << "VM error: " << err << std::endl;
             return 1;

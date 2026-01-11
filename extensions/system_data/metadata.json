@@ -1,0 +1,380 @@
+{
+    "name": "system_data",
+    "version": "1.0.0",
+    "description": "High-performance DataFrame and data manipulation library for Quartz, inspired by pandas",
+    "author": "Quartz Team",
+    "functions": [
+        {
+            "name": "system.data.df.create",
+            "description": "Create an empty DataFrame",
+            "params": [],
+            "returns": "int (DataFrame ID)"
+        },
+        {
+            "name": "system.data.df.fromCSV",
+            "description": "Create DataFrame from CSV string",
+            "params": ["string csv", "string? delimiter", "bool? hasHeader"],
+            "returns": "int (DataFrame ID)"
+        },
+        {
+            "name": "system.data.df.fromArrays",
+            "description": "Create DataFrame from column names and data arrays",
+            "params": ["string[] columnNames", "array[] dataArrays"],
+            "returns": "int (DataFrame ID)"
+        },
+        {
+            "name": "system.data.df.destroy",
+            "description": "Destroy a DataFrame and free memory",
+            "params": ["int dfId"],
+            "returns": "bool"
+        },
+        {
+            "name": "system.data.df.numRows",
+            "description": "Get number of rows in DataFrame",
+            "params": ["int dfId"],
+            "returns": "int"
+        },
+        {
+            "name": "system.data.df.numCols",
+            "description": "Get number of columns in DataFrame",
+            "params": ["int dfId"],
+            "returns": "int"
+        },
+        {
+            "name": "system.data.df.columns",
+            "description": "Get column names",
+            "params": ["int dfId"],
+            "returns": "string[]"
+        },
+        {
+            "name": "system.data.df.repr",
+            "description": "Get string representation of DataFrame",
+            "params": ["int dfId", "int? maxRows"],
+            "returns": "string"
+        },
+        {
+            "name": "system.data.df.describe",
+            "description": "Get summary statistics as new DataFrame",
+            "params": ["int dfId"],
+            "returns": "int (DataFrame ID)"
+        },
+        {
+            "name": "system.data.df.memory",
+            "description": "Get approximate memory usage in bytes",
+            "params": ["int dfId"],
+            "returns": "int"
+        },
+        {
+            "name": "system.data.df.addColumn",
+            "description": "Add a column to DataFrame",
+            "params": ["int dfId", "string name", "double[] data"],
+            "returns": "bool"
+        },
+        {
+            "name": "system.data.df.removeColumn",
+            "description": "Remove a column from DataFrame",
+            "params": ["int dfId", "string name"],
+            "returns": "bool"
+        },
+        {
+            "name": "system.data.df.renameColumn",
+            "description": "Rename a column",
+            "params": ["int dfId", "string oldName", "string newName"],
+            "returns": "bool"
+        },
+        {
+            "name": "system.data.df.select",
+            "description": "Select specific columns",
+            "params": ["int dfId", "string[] columnNames"],
+            "returns": "int (DataFrame ID)"
+        },
+        {
+            "name": "system.data.df.drop",
+            "description": "Drop specific columns",
+            "params": ["int dfId", "string[] columnNames"],
+            "returns": "int (DataFrame ID)"
+        },
+        {
+            "name": "system.data.df.getColumn",
+            "description": "Get column data as array",
+            "params": ["int dfId", "string name"],
+            "returns": "double[]"
+        },
+        {
+            "name": "system.data.df.head",
+            "description": "Get first n rows",
+            "params": ["int dfId", "int? n"],
+            "returns": "int (DataFrame ID)"
+        },
+        {
+            "name": "system.data.df.tail",
+            "description": "Get last n rows",
+            "params": ["int dfId", "int? n"],
+            "returns": "int (DataFrame ID)"
+        },
+        {
+            "name": "system.data.df.slice",
+            "description": "Get rows from start to end",
+            "params": ["int dfId", "int start", "int end"],
+            "returns": "int (DataFrame ID)"
+        },
+        {
+            "name": "system.data.df.query",
+            "description": "Filter rows using query expression (e.g., 'column > 5')",
+            "params": ["int dfId", "string expr"],
+            "returns": "int (DataFrame ID)"
+        },
+        {
+            "name": "system.data.df.sortBy",
+            "description": "Sort DataFrame by column",
+            "params": ["int dfId", "string column", "bool? ascending"],
+            "returns": "int (DataFrame ID)"
+        },
+        {
+            "name": "system.data.df.sum",
+            "description": "Sum of all columns",
+            "params": ["int dfId"],
+            "returns": "dict"
+        },
+        {
+            "name": "system.data.df.mean",
+            "description": "Mean of all columns",
+            "params": ["int dfId"],
+            "returns": "dict"
+        },
+        {
+            "name": "system.data.df.min",
+            "description": "Minimum of all columns",
+            "params": ["int dfId"],
+            "returns": "dict"
+        },
+        {
+            "name": "system.data.df.max",
+            "description": "Maximum of all columns",
+            "params": ["int dfId"],
+            "returns": "dict"
+        },
+        {
+            "name": "system.data.df.std",
+            "description": "Standard deviation of all columns",
+            "params": ["int dfId"],
+            "returns": "dict"
+        },
+        {
+            "name": "system.data.df.groupby.sum",
+            "description": "Group by column and compute sum",
+            "params": ["int dfId", "string groupColumn"],
+            "returns": "int (DataFrame ID)"
+        },
+        {
+            "name": "system.data.df.groupby.mean",
+            "description": "Group by column and compute mean",
+            "params": ["int dfId", "string groupColumn"],
+            "returns": "int (DataFrame ID)"
+        },
+        {
+            "name": "system.data.df.groupby.count",
+            "description": "Group by column and count",
+            "params": ["int dfId", "string groupColumn"],
+            "returns": "int (DataFrame ID)"
+        },
+        {
+            "name": "system.data.df.merge",
+            "description": "Merge two DataFrames on a column",
+            "params": ["int dfId1", "int dfId2", "string on", "string? how"],
+            "returns": "int (DataFrame ID)"
+        },
+        {
+            "name": "system.data.df.concat",
+            "description": "Concatenate two DataFrames",
+            "params": ["int dfId1", "int dfId2", "int? axis"],
+            "returns": "int (DataFrame ID)"
+        },
+        {
+            "name": "system.data.df.dropna",
+            "description": "Drop rows with null values",
+            "params": ["int dfId", "bool? any"],
+            "returns": "int (DataFrame ID)"
+        },
+        {
+            "name": "system.data.df.fillna",
+            "description": "Fill null values with a value",
+            "params": ["int dfId", "double value"],
+            "returns": "int (DataFrame ID)"
+        },
+        {
+            "name": "system.data.df.corr",
+            "description": "Compute correlation matrix",
+            "params": ["int dfId"],
+            "returns": "int (DataFrame ID)"
+        },
+        {
+            "name": "system.data.df.cov",
+            "description": "Compute covariance matrix",
+            "params": ["int dfId"],
+            "returns": "int (DataFrame ID)"
+        },
+        {
+            "name": "system.data.df.transpose",
+            "description": "Transpose DataFrame",
+            "params": ["int dfId"],
+            "returns": "int (DataFrame ID)"
+        },
+        {
+            "name": "system.data.df.copy",
+            "description": "Create a deep copy of DataFrame",
+            "params": ["int dfId"],
+            "returns": "int (DataFrame ID)"
+        },
+        {
+            "name": "system.data.df.toCSV",
+            "description": "Convert DataFrame to CSV string",
+            "params": ["int dfId", "string? delimiter", "bool? includeHeader"],
+            "returns": "string"
+        },
+        {
+            "name": "system.data.df.toJSON",
+            "description": "Convert DataFrame to JSON string",
+            "params": ["int dfId", "string? orient"],
+            "returns": "string"
+        },
+        {
+            "name": "system.data.df.col.sum",
+            "description": "Sum of a specific column",
+            "params": ["int dfId", "string column"],
+            "returns": "double"
+        },
+        {
+            "name": "system.data.df.col.mean",
+            "description": "Mean of a specific column",
+            "params": ["int dfId", "string column"],
+            "returns": "double"
+        },
+        {
+            "name": "system.data.df.col.std",
+            "description": "Standard deviation of a specific column",
+            "params": ["int dfId", "string column"],
+            "returns": "double"
+        },
+        {
+            "name": "system.data.df.col.min",
+            "description": "Minimum of a specific column",
+            "params": ["int dfId", "string column"],
+            "returns": "double"
+        },
+        {
+            "name": "system.data.df.col.max",
+            "description": "Maximum of a specific column",
+            "params": ["int dfId", "string column"],
+            "returns": "double"
+        },
+        {
+            "name": "system.data.io.readCSV",
+            "description": "Read CSV file into DataFrame",
+            "params": ["string filename", "string? delimiter", "bool? hasHeader"],
+            "returns": "int (DataFrame ID)"
+        },
+        {
+            "name": "system.data.io.writeCSV",
+            "description": "Write DataFrame to CSV file",
+            "params": ["int dfId", "string filename", "string? delimiter", "bool? includeHeader"],
+            "returns": "bool"
+        },
+        {
+            "name": "system.data.io.writeJSON",
+            "description": "Write DataFrame to JSON file",
+            "params": ["int dfId", "string filename", "string? orient"],
+            "returns": "bool"
+        },
+        {
+            "name": "system.data.series.create",
+            "description": "Create a Series from array",
+            "params": ["string name", "double[] data"],
+            "returns": "int (Series ID)"
+        },
+        {
+            "name": "system.data.series.range",
+            "description": "Create a Series with range of values",
+            "params": ["string name", "int start", "int end", "int? step"],
+            "returns": "int (Series ID)"
+        },
+        {
+            "name": "system.data.series.zeros",
+            "description": "Create a Series of zeros",
+            "params": ["string name", "int count"],
+            "returns": "int (Series ID)"
+        },
+        {
+            "name": "system.data.series.ones",
+            "description": "Create a Series of ones",
+            "params": ["string name", "int count"],
+            "returns": "int (Series ID)"
+        },
+        {
+            "name": "system.data.series.sum",
+            "description": "Sum of Series",
+            "params": ["int seriesId"],
+            "returns": "double"
+        },
+        {
+            "name": "system.data.series.mean",
+            "description": "Mean of Series",
+            "params": ["int seriesId"],
+            "returns": "double"
+        },
+        {
+            "name": "system.data.series.min",
+            "description": "Minimum of Series",
+            "params": ["int seriesId"],
+            "returns": "double"
+        },
+        {
+            "name": "system.data.series.max",
+            "description": "Maximum of Series",
+            "params": ["int seriesId"],
+            "returns": "double"
+        },
+        {
+            "name": "system.data.series.std",
+            "description": "Standard deviation of Series",
+            "params": ["int seriesId"],
+            "returns": "double"
+        },
+        {
+            "name": "system.data.series.median",
+            "description": "Median of Series",
+            "params": ["int seriesId"],
+            "returns": "double"
+        },
+        {
+            "name": "system.data.series.quantile",
+            "description": "Quantile of Series (0-1)",
+            "params": ["int seriesId", "double q"],
+            "returns": "double"
+        },
+        {
+            "name": "system.data.series.normalize",
+            "description": "Normalize Series (z-score)",
+            "params": ["int seriesId"],
+            "returns": "int (Series ID)"
+        },
+        {
+            "name": "system.data.series.toArray",
+            "description": "Convert Series to array",
+            "params": ["int seriesId"],
+            "returns": "double[]"
+        },
+        {
+            "name": "system.data.series.repr",
+            "description": "String representation of Series",
+            "params": ["int seriesId"],
+            "returns": "string"
+        },
+        {
+            "name": "system.data.series.destroy",
+            "description": "Destroy Series and free memory",
+            "params": ["int seriesId"],
+            "returns": "bool"
+        }
+    ]
+}
